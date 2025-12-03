@@ -1,0 +1,254 @@
+'use client';
+import { useEffect, useMemo, useState } from 'react';
+import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { useAuth } from '@/hooks/use-auth';
+import type { Transaction, Debt, Receivable } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+import { generateFinancialSuggestions } from '@/ai/flows/generate-financial-suggestions';
+import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Badge } from '../ui/badge';
+
+export function DashboardClient() {
+  const { user } = useAuth();
+  const db = useFirestore();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [receivables, setReceivables] = useState<Receivable[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [aiSuggestions, setAiSuggestions] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    if (!user || !db) return;
+    setLoading(true);
+
+    const recordsRef = collection(db, 'records');
+
+    const qTransactions = query(
+      recordsRef,
+      where('userId', '==', user.uid),
+      where('recordType', '==', 'transaction'),
+      orderBy('date', 'desc'),
+      limit(5)
+    );
+    const qDebts = query(
+      recordsRef,
+      where('userId', '==', user.uid),
+      where('recordType', '==', 'debt'),
+      where('isPaid', '==', false),
+      orderBy('dueDate', 'asc')
+    );
+    const qReceivables = query(
+      recordsRef,
+      where('userId', '==', user.uid),
+      where('recordType', '==', 'receivable'),
+      where('isReceived', '==', false),
+      orderBy('dueDate', 'asc')
+    );
+
+    const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Transaction[];
+      setTransactions(data);
+      setLoading(false);
+    });
+
+    const unsubDebts = onSnapshot(qDebts, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Debt[];
+      setDebts(data);
+    });
+
+    const unsubReceivables = onSnapshot(qReceivables, (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Receivable[];
+        setReceivables(data);
+    });
+
+    return () => {
+      unsubTransactions();
+      unsubDebts();
+      unsubReceivables();
+    };
+  }, [user, db]);
+
+  const summary = useMemo(() => {
+    const totalDebt = debts.reduce((acc, debt) => acc + debt.amount, 0);
+    const totalReceivable = receivables.reduce((acc, rec) => acc + rec.amount, 0);
+    const totalIncome = transactions
+      .filter((t) => t.type === 'income')
+      .reduce((acc, t) => acc + t.amount, 0);
+    const totalExpense = transactions
+      .filter((t) => t.type === 'expense')
+      .reduce((acc, t) => acc + t.amount, 0);
+    
+    return { totalDebt, totalReceivable, totalIncome, totalExpense };
+  }, [transactions, debts, receivables]);
+
+  const expenseChartData = useMemo(() => {
+    const expensesByCategory = transactions
+      .filter((t) => t.type === 'expense')
+      .reduce((acc, t) => {
+        acc[t.category] = (acc[t.category] || 0) + t.amount;
+        return acc;
+      }, {} as { [key: string]: number });
+
+    return Object.entries(expensesByCategory).map(([name, total]) => ({ name, total }));
+  }, [transactions]);
+
+  const handleGenerateSuggestions = async () => {
+    if (!user) return;
+    setIsGenerating(true);
+    setAiSuggestions('');
+    
+    const financialContext = `
+      Recent Income: ${summary.totalIncome.toFixed(2)}
+      Recent Expenses: ${summary.totalExpense.toFixed(2)}
+      Debts (Money I owe): Total ${summary.totalDebt.toFixed(2)}. Details: ${debts.map(d => `${d.creditor}: ${d.amount}`).join(', ')}
+      Receivables (Money owed to me): Total ${summary.totalReceivable.toFixed(2)}. Details: ${receivables.map(r => `${r.debtor}: ${r.amount}`).join(', ')}
+      Recent Transactions: ${transactions.map(t => `${t.type} of ${t.amount} for ${t.description}`).join('; ')}
+    `;
+
+    try {
+      const result = await generateFinancialSuggestions({ financialRecords: financialContext });
+      setAiSuggestions(result.suggestions);
+    } catch (error) {
+      console.error("Error generating suggestions:", error);
+      setAiSuggestions('Sorry, I couldn\'t generate suggestions at this moment. Please try again later.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  }
+
+  if (loading) {
+    return (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Skeleton className="h-32"/>
+            <Skeleton className="h-32"/>
+            <Skeleton className="h-32"/>
+            <Skeleton className="h-32"/>
+        </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:col-span-3">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Money Owed To You</CardTitle>
+                    <ArrowUpRight className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.totalReceivable)}</div>
+                    <p className="text-xs text-muted-foreground">{receivables.length} outstanding receivable(s)</p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Money You Owe</CardTitle>
+                    <ArrowDownLeft className="h-4 w-4 text-red-500" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.totalDebt)}</div>
+                    <p className="text-xs text-muted-foreground">{debts.length} outstanding debt(s)</p>
+                </CardContent>
+            </Card>
+        </div>
+
+        <div className="lg:col-span-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Expense Analysis</CardTitle>
+                </CardHeader>
+                <CardContent className="pl-2">
+                    {expenseChartData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={expenseChartData}>
+                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                        <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}/>
+                        <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                    ) : <p className="text-center text-muted-foreground py-10">No expense data for chart.</p>}
+                </CardContent>
+            </Card>
+        </div>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>AI Financial Advisor</CardTitle>
+            </CardHeader>
+            <CardContent>
+                {aiSuggestions ? (
+                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
+                        <p>{aiSuggestions}</p>
+                    </div>
+                ) : (
+                    <p className="text-sm text-muted-foreground">Get personalized suggestions for better money management based on your recent activity.</p>
+                )}
+                <Button onClick={handleGenerateSuggestions} disabled={isGenerating} className="mt-4 w-full">
+                    {isGenerating ? 'Analyzing...' : 'Generate Suggestions'}
+                </Button>
+            </CardContent>
+        </Card>
+        
+        <div className="lg:col-span-3 grid gap-6 md:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Recent Transactions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableBody>
+                            {transactions.length > 0 ? transactions.map(t => (
+                                <TableRow key={t.id}>
+                                    <TableCell>
+                                        <div className="font-medium">{t.description}</div>
+                                        <div className="text-sm text-muted-foreground">{t.date.toDate().toLocaleDateString()}</div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Badge variant={t.type === 'income' ? 'secondary' : 'outline'} className={t.type === 'income' ? 'text-green-600' : 'text-red-600'}>
+                                            {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+                            )) : <TableRow><TableCell colSpan={2} className="text-center">No recent transactions</TableCell></TableRow>}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-destructive" />
+                        Upcoming Payments
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableBody>
+                            {debts.length > 0 ? debts.slice(0, 5).map(d => (
+                                <TableRow key={d.id}>
+                                    <TableCell>
+                                        <div className="font-medium">Pay {d.creditor}</div>
+                                        <div className="text-sm text-muted-foreground">Due: {d.dueDate.toDate().toLocaleDateString()}</div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(d.amount)}</TableCell>
+                                </TableRow>
+                            )) : <TableRow><TableCell colSpan={2} className="text-center">No upcoming payments</TableCell></TableRow>}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </div>
+    </div>
+  );
+}
