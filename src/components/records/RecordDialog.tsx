@@ -58,42 +58,48 @@ const debtReceivableSchema = baseSchema.extend({
 type FormValues = z.infer<typeof transactionSchema> | z.infer<typeof debtReceivableSchema>;
 
 const getInitialValues = (record: FinancialRecord | null, activeTab: RecordType) => {
-    const baseDefaults = {
-        description: '',
-        amount: '' as any, // Use empty string for controlled input
-    };
-
     const transactionDefaults = {
-        ...baseDefaults,
-        type: 'expense',
+        description: '',
+        amount: '' as any,
+        type: 'expense' as 'income' | 'expense',
         category: '',
         date: new Date(),
     };
 
     const debtReceivableDefaults = {
-        ...baseDefaults,
+        description: '',
+        amount: '' as any,
         person: '',
         dueDate: new Date(),
     };
     
-    let defaultValues: any = activeTab === 'transaction' ? transactionDefaults : debtReceivableDefaults;
-
     if (record && record.recordType === activeTab) {
-        defaultValues.description = record.description;
-        defaultValues.amount = record.amount;
         if(record.recordType === 'transaction') {
-            defaultValues.type = record.type;
-            defaultValues.category = record.category;
-            defaultValues.date = record.date.toDate();
+            return {
+                description: record.description || '',
+                amount: record.amount || '',
+                type: record.type || 'expense',
+                category: record.category || '',
+                date: record.date ? record.date.toDate() : new Date(),
+            }
         } else if (record.recordType === 'debt') {
-            defaultValues.person = record.creditor;
-            defaultValues.dueDate = record.dueDate.toDate();
+            return {
+                description: record.description || '',
+                amount: record.amount || '',
+                person: record.creditor || '',
+                dueDate: record.dueDate ? record.dueDate.toDate() : new Date(),
+            }
         } else if (record.recordType === 'receivable') {
-            defaultValues.person = record.debtor;
-            defaultValues.dueDate = record.dueDate.toDate();
+             return {
+                description: record.description || '',
+                amount: record.amount || '',
+                person: record.debtor || '',
+                dueDate: record.dueDate ? record.dueDate.toDate() : new Date(),
+            }
         }
     }
-    return defaultValues;
+    
+    return activeTab === 'transaction' ? transactionDefaults : debtReceivableDefaults;
 }
 
 export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogProps) {
@@ -110,10 +116,12 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
   });
   
   useEffect(() => {
-    // Reset form with new default values when tab changes or dialog opens/closes
-    form.reset(getInitialValues(record, activeTab));
-  }, [isOpen, record, activeTab, form]);
-
+    if (isOpen) {
+      const newActiveTab = record?.recordType || activeTab;
+      setActiveTab(newActiveTab);
+      form.reset(getInitialValues(record, newActiveTab));
+    }
+  }, [isOpen, record, form, activeTab]);
 
   const onSubmit = (values: FormValues) => {
     if (!user) return;
