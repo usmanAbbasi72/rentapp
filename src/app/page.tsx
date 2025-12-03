@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { LoginForm } from '@/components/auth/LoginForm';
-import { useAuth } from '@/firebase/client-provider';
+import { useAuth } from '@/hooks/use-auth';
 import AppLogo from '@/components/shared/AppLogo';
 import { Skeleton } from '@/components/ui/skeleton';
 

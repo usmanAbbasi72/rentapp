@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { useAuth, useFirestore } from '@/firebase/client-provider';
+import { useUser, useFirestore } from '@/firebase/provider';
 import type { Transaction, Debt, Receivable, FinancialRecord } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from './data-table';
@@ -13,8 +13,8 @@ import { RecordDialog } from './RecordDialog';
 import { useToast } from '@/hooks/use-toast';
 
 export function RecordsClient() {
-  const { user } = useAuth();
-  const { db } = useFirestore();
+  const { user } = useUser();
+  const db = useFirestore();
   const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);

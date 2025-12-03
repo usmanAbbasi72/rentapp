@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import React, { useEffect } from 'react';
-import { useAuth } from '@/firebase/client-provider';
+import { useAuth } from '@/hooks/use-auth';
 import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { DashboardSidebar } from '@/components/shared/DashboardSidebar';
 import { UserNav } from '@/components/shared/UserNav';

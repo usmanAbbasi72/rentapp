@@ -1,7 +1,7 @@
 'use client';
-import { useAuth as useFirebaseAuth } from '@/firebase/client-provider';
+import { useUser } from '@/firebase/provider';
 
 export const useAuth = () => {
-  const { user, loading } = useFirebaseAuth();
-  return { user, loading, error: null };
+  const { user, isUserLoading, userError } = useUser();
+  return { user, loading: isUserLoading, error: userError };
 };
