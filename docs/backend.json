@@ -1,0 +1,242 @@
+{
+  "entities": {
+    "MoneyOwedRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MoneyOwedRecord",
+      "type": "object",
+      "description": "Represents a record of money owed by the user to others.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the money owed record."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of money owed."
+        },
+        "owedTo": {
+          "type": "string",
+          "description": "The person or entity to whom the money is owed."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The date by which the money is due.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes or details about the debt."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N MoneyOwedRecord)"
+        }
+      },
+      "required": [
+        "id",
+        "amount",
+        "owedTo",
+        "dueDate",
+        "userId"
+      ]
+    },
+    "MoneyRemainingRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MoneyRemainingRecord",
+      "type": "object",
+      "description": "Represents a record of money owed to the user by others.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the money remaining record."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of money owed to the user."
+        },
+        "owedBy": {
+          "type": "string",
+          "description": "The person or entity who owes the money."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The date by which the money is expected.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes or details about the expected money."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N MoneyRemainingRecord)"
+        }
+      },
+      "required": [
+        "id",
+        "amount",
+        "owedBy",
+        "dueDate",
+        "userId"
+      ]
+    },
+    "DailyMoneyUseRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DailyMoneyUseRecord",
+      "type": "object",
+      "description": "Represents a record of daily money received or spent by the user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the daily money use record."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the money use record.",
+          "format": "date-time"
+        },
+        "received": {
+          "type": "number",
+          "description": "The amount of money received on that day."
+        },
+        "spent": {
+          "type": "number",
+          "description": "The amount of money spent on that day."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "The purpose for which the money was spent or received."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes about the daily money usage."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N DailyMoneyUseRecord)"
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "received",
+        "spent",
+        "purpose",
+        "userId"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "The display name of the user."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. Only the user themselves can access this data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/moneyOwedRecords/{moneyOwedRecordId}",
+        "definition": {
+          "entityName": "MoneyOwedRecord",
+          "schema": {
+            "$ref": "#/backend/entities/MoneyOwedRecord"
+          },
+          "description": "Stores records of money owed by the user. Only the user can access these records. Includes 'userId' for path-based access control.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "moneyOwedRecordId",
+              "description": "The unique identifier of the money owed record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/moneyRemainingRecords/{moneyRemainingRecordId}",
+        "definition": {
+          "entityName": "MoneyRemainingRecord",
+          "schema": {
+            "$ref": "#/backend/entities/MoneyRemainingRecord"
+          },
+          "description": "Stores records of money owed to the user. Only the user can access these records. Includes 'userId' for path-based access control.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "moneyRemainingRecordId",
+              "description": "The unique identifier of the money remaining record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/dailyMoneyUseRecords/{dailyMoneyUseRecordId}",
+        "definition": {
+          "entityName": "DailyMoneyUseRecord",
+          "schema": {
+            "$ref": "#/backend/entities/DailyMoneyUseRecord"
+          },
+          "description": "Stores records of daily money usage by the user. Only the user can access these records. Includes 'userId' for path-based access control.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "dailyMoneyUseRecordId",
+              "description": "The unique identifier of the daily money use record."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure data isolation and security for each user's financial records. Each user has their own dedicated collections for 'MoneyOwedRecord', 'MoneyRemainingRecord', and 'DailyMoneyUseRecord'. This path-based ownership (`/users/{userId}/...`) provides excellent isolation, simplifies security rules, and enables efficient data retrieval for each user. It eliminates the need for complex queries or filtering based on user IDs, improving performance and security. This structure also promotes authorization independence, as access control is determined by the path itself, eliminating the need for `get()` calls in security rules to verify ownership. Furthermore, this structure is highly scalable, as each user's data is stored separately, minimizing contention and maximizing performance. QAPs are supported because listing operations are naturally scoped to the user's own data, preventing unauthorized access to other users' information."
+  }
+}

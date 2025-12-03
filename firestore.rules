@@ -1,0 +1,113 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict user-ownership model where all
+ * data is private to the user who created it. Data access is controlled entirely
+ * by the user's authenticated ID.
+ *
+ * Data Structure: The data is organized hierarchically. All user-specific data,
+ * including financial records, is stored in subcollections under a main `/users/{userId}`
+ * document. This structure provides natural data isolation and simplifies security rules.
+ *
+ * Key Security Decisions:
+ * - User Isolation: Users can only access documents within their own data tree
+ *   (i.e., paths starting with `/users/{their_auth_uid}`).
+ * - No Public Data: All collections are protected and require authentication. There
+ *   is no publicly readable or listable data.
+ * - No User Listing: It is not possible for any client to list all documents in
+ *   the top-level `/users` collection.
+ * - Relational Integrity: On creation, documents must contain an ID field (`id` or `userId`)
+ *   that matches the corresponding ID in the document path, ensuring data consistency.
+ *   These relational IDs are enforced as immutable on updates.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's ID matches the provided userId.
+     * This is the primary function for verifying document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Checks for ownership on an existing document. Used for update and delete
+     * operations to prevent acting on non-existent data.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Validates that a new User document contains an 'id' field that matches
+     * the document's ID (which is the user's UID). Enforces path integrity.
+     */
+    function hasCorrectIdOnCreate(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * Enforces immutability of the 'id' field within a User document during an update.
+     * Prevents re-assigning the core identifier of a user profile.
+     */
+    function isIdImmutable() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * Validates that a new record in a user subcollection contains a 'userId' field
+     * that matches the parent user's document ID. Enforces the relationship.
+     */
+    function hasCorrectUserIdOnCreate(userId) {
+      return request.resource.data.userId == userId;
+    }
+
+    /**
+     * Enforces immutability of the 'userId' field within a subcollection record.
+     * Prevents a record from being moved between users.
+     */
+    function isUserIdImmutable() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+
+    /**
+     * @description Rules for the user's own profile document.
+     * @path /users/{userId}
+     * @allow A user (uid: 'user123') can (create), (get), (update), or (delete) their own document at /users/user123.
+     * @deny A user (uid: 'user456') is denied all access to /users/user123.
+     * @principle Restricts access to a user's own data tree and allows self-creation of a profile.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && hasCorrectIdOnCreate(userId);
+      allow update: if isExistingOwner(userId) && isIdImmutable();
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for all user-specific financial record subcollections.
+       * @path /users/{userId}/{recordCollection}/{recordId}
+       * @allow A user (uid: 'user123') can (create) a new record at /users/user123/moneyOwedRecords/recordABC.
+       * @deny A user (uid: 'user456') is denied from reading a record at /users/user123/moneyOwedRecords/recordABC.
+       * @principle Enforces document ownership for all CRUDL operations within user-private subcollections.
+       */
+      match /{recordCollection}/{recordId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && hasCorrectUserIdOnCreate(userId);
+        allow update: if isExistingOwner(userId) && isUserIdImmutable();
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+  }
+}
