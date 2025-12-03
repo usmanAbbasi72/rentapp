@@ -6,7 +6,6 @@ import type { Transaction, Debt, Receivable } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
-import { generateFinancialSuggestions } from '@/ai/flows/generate-financial-suggestions';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -19,8 +18,6 @@ export function DashboardClient() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [loading, setLoading] = useState(true);
-  const [aiSuggestions, setAiSuggestions] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (!user || !db) return;
@@ -97,30 +94,6 @@ export function DashboardClient() {
     return Object.entries(expensesByCategory).map(([name, total]) => ({ name, total }));
   }, [transactions]);
 
-  const handleGenerateSuggestions = async () => {
-    if (!user) return;
-    setIsGenerating(true);
-    setAiSuggestions('');
-    
-    const financialContext = `
-      Recent Income: ${summary.totalIncome.toFixed(2)}
-      Recent Expenses: ${summary.totalExpense.toFixed(2)}
-      Debts (Money I owe): Total ${summary.totalDebt.toFixed(2)}. Details: ${debts.map(d => `${d.creditor}: ${d.amount}`).join(', ')}
-      Receivables (Money owed to me): Total ${summary.totalReceivable.toFixed(2)}. Details: ${receivables.map(r => `${r.debtor}: ${r.amount}`).join(', ')}
-      Recent Transactions: ${transactions.map(t => `${t.type} of ${t.amount} for ${t.description}`).join('; ')}
-    `;
-
-    try {
-      const result = await generateFinancialSuggestions({ financialRecords: financialContext });
-      setAiSuggestions(result.suggestions);
-    } catch (error) {
-      console.error("Error generating suggestions:", error);
-      setAiSuggestions('Sorry, I couldn\'t generate suggestions at this moment. Please try again later.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   }
@@ -161,7 +134,7 @@ export function DashboardClient() {
             </Card>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
             <Card>
                 <CardHeader>
                     <CardTitle>Expense Analysis</CardTitle>
@@ -180,24 +153,6 @@ export function DashboardClient() {
                 </CardContent>
             </Card>
         </div>
-
-        <Card>
-            <CardHeader>
-                <CardTitle>AI Financial Advisor</CardTitle>
-            </CardHeader>
-            <CardContent>
-                {aiSuggestions ? (
-                    <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
-                        <p>{aiSuggestions}</p>
-                    </div>
-                ) : (
-                    <p className="text-sm text-muted-foreground">Get personalized suggestions for better money management based on your recent activity.</p>
-                )}
-                <Button onClick={handleGenerateSuggestions} disabled={isGenerating} className="mt-4 w-full">
-                    {isGenerating ? 'Analyzing...' : 'Generate Suggestions'}
-                </Button>
-            </CardContent>
-        </Card>
         
         <div className="lg:col-span-3 grid gap-6 md:grid-cols-2">
             <Card>
