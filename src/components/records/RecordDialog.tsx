@@ -57,28 +57,26 @@ const debtReceivableSchema = baseSchema.extend({
 
 type FormValues = z.infer<typeof transactionSchema> | z.infer<typeof debtReceivableSchema>;
 
-export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogProps) {
-  const [activeTab, setActiveTab] = useState<RecordType>(record?.recordType || 'transaction');
-  const { user } = useUser();
-
-  const getSchema = (tab: RecordType) => {
-    return tab === 'transaction' ? transactionSchema : debtReceivableSchema;
-  };
-  
-  const form = useForm<any>({
-    resolver: zodResolver(getSchema(activeTab)),
-    defaultValues: {},
-  });
-  
-  useEffect(() => {
-    form.reset();
-    const defaultValues: any = {
-      description: '',
-      amount: 0,
-      ...(activeTab === 'transaction'
-        ? { type: 'expense', category: '', date: new Date() }
-        : { person: '', dueDate: new Date() }),
+const getInitialValues = (record: FinancialRecord | null, activeTab: RecordType) => {
+    const baseDefaults = {
+        description: '',
+        amount: '' as any, // Use empty string for controlled input
     };
+
+    const transactionDefaults = {
+        ...baseDefaults,
+        type: 'expense',
+        category: '',
+        date: new Date(),
+    };
+
+    const debtReceivableDefaults = {
+        ...baseDefaults,
+        person: '',
+        dueDate: new Date(),
+    };
+    
+    let defaultValues: any = activeTab === 'transaction' ? transactionDefaults : debtReceivableDefaults;
 
     if (record && record.recordType === activeTab) {
         defaultValues.description = record.description;
@@ -95,8 +93,25 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
             defaultValues.dueDate = record.dueDate.toDate();
         }
     }
-    
-    form.reset(defaultValues, { keepDefaultValues: true });
+    return defaultValues;
+}
+
+export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogProps) {
+  const [activeTab, setActiveTab] = useState<RecordType>(record?.recordType || 'transaction');
+  const { user } = useUser();
+
+  const getSchema = (tab: RecordType) => {
+    return tab === 'transaction' ? transactionSchema : debtReceivableSchema;
+  };
+  
+  const form = useForm<any>({
+    resolver: zodResolver(getSchema(activeTab)),
+    defaultValues: getInitialValues(record, activeTab),
+  });
+  
+  useEffect(() => {
+    // Reset form with new default values when tab changes or dialog opens/closes
+    form.reset(getInitialValues(record, activeTab));
   }, [isOpen, record, activeTab, form]);
 
 
