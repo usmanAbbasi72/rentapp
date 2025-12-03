@@ -32,16 +32,12 @@ export function DashboardClient() {
       orderBy('date', 'desc'),
       limit(5)
     );
-    const qDebts = query(
-      debtsRef,
-      where('isPaid', '==', false),
-      orderBy('dueDate', 'asc')
-    );
-    const qReceivables = query(
-      receivablesRef,
-      where('isReceived', '==', false),
-      orderBy('dueDate', 'asc')
-    );
+    
+    // Fetch all debts and filter/sort on the client
+    const qDebts = query(debtsRef);
+    
+    // Fetch all receivables and filter/sort on the client
+    const qReceivables = query(receivablesRef);
 
     const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Transaction[];
@@ -53,13 +49,19 @@ export function DashboardClient() {
     });
 
     const unsubDebts = onSnapshot(qDebts, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Debt[];
-      setDebts(data);
+      const allDebts = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Debt[];
+      const outstandingDebts = allDebts
+        .filter(d => !d.isPaid)
+        .sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+      setDebts(outstandingDebts);
     });
 
     const unsubReceivables = onSnapshot(qReceivables, (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Receivable[];
-        setReceivables(data);
+        const allReceivables = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Receivable[];
+        const outstandingReceivables = allReceivables
+            .filter(r => !r.isReceived)
+            .sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        setReceivables(outstandingReceivables);
     });
 
     return () => {
