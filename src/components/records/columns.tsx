@@ -11,8 +11,8 @@ import {
 import type { Transaction, Debt, Receivable, FinancialRecord } from '@/lib/types';
 import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+import { doc, updateDoc, getFirestore } from 'firebase/firestore';
+import { app } from '@/firebase/config';
 
 const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 const formatDate = (timestamp: any) => timestamp?.toDate().toLocaleDateString() ?? '';
@@ -60,6 +60,7 @@ export const transactionColumns = (
 ];
 
 const togglePaidStatus = async (id: string, currentStatus: boolean, field: 'isPaid' | 'isReceived') => {
+  const db = getFirestore();
   if (!db) return;
   const recordRef = doc(db, 'records', id);
   await updateDoc(recordRef, { [field]: !currentStatus });

@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth as useFirebaseAuth } from '@/firebase';
+import { useAuth } from '@/firebase/client-provider';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { User } from 'firebase/auth';
 import { signOut } from 'firebase/auth';
@@ -26,7 +26,7 @@ interface UserNavProps {
 export function UserNav({ user }: UserNavProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const auth = useFirebaseAuth();
+  const { auth } = useAuth();
   const userAvatar = PlaceHolderImages.find(p => p.id === 'user-avatar');
 
   const handleSignOut = async () => {

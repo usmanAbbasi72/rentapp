@@ -11,8 +11,7 @@ import {
 import AppLogo from './AppLogo';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, List, LogOut } from 'lucide-react';
-import { useAuth as useFirebaseAuth } from '@/firebase';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/firebase/client-provider';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -21,8 +20,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 export function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth();
-  const auth = useFirebaseAuth();
+  const { user, auth } = useAuth();
   const { toast } = useToast();
   const userAvatar = PlaceHolderImages.find(p => p.id === 'user-avatar');
 
