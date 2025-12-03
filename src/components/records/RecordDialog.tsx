@@ -22,7 +22,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { FinancialRecord, RecordType } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '@/lib/utils';
@@ -55,8 +55,6 @@ const debtReceivableSchema = baseSchema.extend({
     dueDate: z.date(),
 });
 
-type FormValues = z.infer<typeof transactionSchema> | z.infer<typeof debtReceivableSchema>;
-
 const getInitialValues = (record: FinancialRecord | null, activeTab: RecordType) => {
     const transactionDefaults = {
         description: '',
@@ -64,6 +62,8 @@ const getInitialValues = (record: FinancialRecord | null, activeTab: RecordType)
         type: 'expense' as 'income' | 'expense',
         category: '',
         date: new Date(),
+        person: '', // Ensure person is defined for all types
+        dueDate: new Date(), // Ensure dueDate is defined for all types
     };
 
     const debtReceivableDefaults = {
@@ -71,40 +71,54 @@ const getInitialValues = (record: FinancialRecord | null, activeTab: RecordType)
         amount: '' as any,
         person: '',
         dueDate: new Date(),
+        type: 'expense' as 'income' | 'expense', // Ensure type is defined
+        category: '', // Ensure category is defined
+        date: new Date(), // Ensure date is defined
     };
     
-    if (record && record.recordType === activeTab) {
-        if(record.recordType === 'transaction') {
-            return {
-                description: record.description || '',
-                amount: record.amount || '',
-                type: record.type || 'expense',
-                category: record.category || '',
-                date: record.date ? record.date.toDate() : new Date(),
-            }
-        } else if (record.recordType === 'debt') {
-            return {
-                description: record.description || '',
-                amount: record.amount || '',
-                person: record.creditor || '',
-                dueDate: record.dueDate ? record.dueDate.toDate() : new Date(),
-            }
-        } else if (record.recordType === 'receivable') {
-             return {
-                description: record.description || '',
-                amount: record.amount || '',
-                person: record.debtor || '',
-                dueDate: record.dueDate ? record.dueDate.toDate() : new Date(),
-            }
-        }
+    if (!record) {
+        return activeTab === 'transaction' ? transactionDefaults : debtReceivableDefaults;
     }
+
+    if (record.recordType === 'transaction') {
+        return {
+            ...transactionDefaults,
+            description: record.description || '',
+            amount: record.amount || '',
+            type: record.type || 'expense',
+            category: record.category || '',
+            date: record.date ? record.date.toDate() : new Date(),
+        };
+    } 
     
+    if (record.recordType === 'debt') {
+        return {
+            ...debtReceivableDefaults,
+            description: record.description || '',
+            amount: record.amount || '',
+            person: record.creditor || '',
+            dueDate: record.dueDate ? record.dueDate.toDate() : new Date(),
+        };
+    } 
+    
+    if (record.recordType === 'receivable') {
+        return {
+            ...debtReceivableDefaults,
+            description: record.description || '',
+            amount: record.amount || '',
+            person: record.debtor || '',
+            dueDate: record.dueDate ? record.dueDate.toDate() : new Date(),
+        };
+    }
+
+    // Fallback to defaults based on tab if record type doesn't match
     return activeTab === 'transaction' ? transactionDefaults : debtReceivableDefaults;
-}
+};
 
 export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogProps) {
   const [activeTab, setActiveTab] = useState<RecordType>(record?.recordType || 'transaction');
   const { user } = useUser();
+  const formKey = useMemo(() => `${activeTab}-${record?.id || 'new'}`, [activeTab, record]);
 
   const getSchema = (tab: RecordType) => {
     return tab === 'transaction' ? transactionSchema : debtReceivableSchema;
@@ -116,14 +130,20 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
   });
   
   useEffect(() => {
+    // When the dialog opens or the record changes, reset the active tab and the form.
     if (isOpen) {
-      const newActiveTab = record?.recordType || activeTab;
+      const newActiveTab = record?.recordType || 'transaction';
       setActiveTab(newActiveTab);
       form.reset(getInitialValues(record, newActiveTab));
     }
-  }, [isOpen, record, form, activeTab]);
+  }, [isOpen, record, form]);
 
-  const onSubmit = (values: FormValues) => {
+  useEffect(() => {
+    // When the tab changes, reset the form with the correct defaults for that tab.
+    form.reset(getInitialValues(record, activeTab));
+  }, [activeTab, form, record]);
+
+  const onSubmit = (values: any) => {
     if (!user) return;
     const dataToSave: any = { ...values };
     
@@ -136,19 +156,27 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
     if ('person' in dataToSave) {
         if(activeTab === 'debt') {
             dataToSave.creditor = dataToSave.person;
-            dataToSave.debtor = user.displayName || user.email; // The user is the debtor
-        } else { // receivable
+            dataToSave.debtor = user.displayName || user.email;
+        } else if (activeTab === 'receivable') {
             dataToSave.debtor = dataToSave.person;
-            dataToSave.creditor = user.displayName || user.email; // The user is the creditor
+            dataToSave.creditor = user.displayName || user.email;
         }
         delete dataToSave.person;
     }
 
     if (activeTab === 'debt') {
         dataToSave.isPaid = record ? (record as any).isPaid : false;
-    }
-    if (activeTab === 'receivable') {
+        delete dataToSave.type;
+        delete dataToSave.category;
+        delete dataToSave.date;
+    } else if (activeTab === 'receivable') {
         dataToSave.isReceived = record ? (record as any).isReceived : false;
+        delete dataToSave.type;
+        delete dataToSave.category;
+        delete dataToSave.date;
+    } else if (activeTab === 'transaction') {
+        delete dataToSave.dueDate;
+        delete dataToSave.person;
     }
     
     onSave(dataToSave, activeTab);
@@ -170,7 +198,7 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
             <TabsTrigger value="receivable" disabled={!!record && record.recordType !== 'receivable'}>Receivable</TabsTrigger>
           </TabsList>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+            <form key={formKey} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
               <TabsContent value="transaction" forceMount className={activeTab === 'transaction' ? '' : 'hidden'}>
                 {TransactionFormFields(form.control)}
               </TabsContent>
