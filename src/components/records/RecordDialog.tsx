@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -135,6 +136,9 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{record ? 'Edit' : 'Add'} Record</DialogTitle>
+          <DialogDescription>
+            {record ? 'Edit the' : 'Add a new'} financial record. Select a tab to change the record type.
+          </DialogDescription>
         </DialogHeader>
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as RecordType)}>
           <TabsList className="grid w-full grid-cols-3">
