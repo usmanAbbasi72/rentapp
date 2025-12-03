@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
-import type { Transaction, Debt, Receivable, FinancialRecord } from '@/lib/types';
+import type { Transaction, Debt, Receivable, FinancialRecord, RecordType } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from './data-table';
 import { transactionColumns, debtColumns, receivableColumns } from './columns';
@@ -11,6 +11,12 @@ import { Button } from '../ui/button';
 import { PlusCircle } from 'lucide-react';
 import { RecordDialog } from './RecordDialog';
 import { useToast } from '@/hooks/use-toast';
+
+const recordTypeToCollectionName = {
+    transaction: 'dailyMoneyUseRecords',
+    debt: 'moneyOwedRecords',
+    receivable: 'moneyRemainingRecords',
+};
 
 export function RecordsClient() {
   const { user } = useUser();
@@ -26,19 +32,20 @@ export function RecordsClient() {
   useEffect(() => {
     if (!user || !db) return;
     setLoading(true);
-
-    const recordsRef = collection(db, 'records');
     
-    const createSubscription = (recordType: string, setData: Function) => {
+    const createSubscription = (recordType: RecordType, setData: Function) => {
+        const collectionName = recordTypeToCollectionName[recordType];
+        const recordsRef = collection(db, 'users', user.uid, collectionName);
         const q = query(
             recordsRef,
-            where('userId', '==', user.uid),
-            where('recordType', '==', recordType),
-            orderBy('createdAt', 'desc')
+            orderBy(recordType === 'transaction' ? 'date' : 'dueDate', 'desc')
         );
         return onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+            const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data(), recordType }));
             setData(data);
+            setLoading(false);
+        }, (error) => {
+            console.error(`Error fetching ${collectionName}:`, error);
             setLoading(false);
         });
     };
@@ -62,19 +69,20 @@ export function RecordsClient() {
   const handleSaveRecord = async (values: any, recordType: string) => {
     if (!user || !db) return;
     
+    const collectionName = recordTypeToCollectionName[recordType as RecordType];
+
     const data = {
         ...values,
         userId: user.uid,
-        recordType,
-        createdAt: editingRecord ? editingRecord.createdAt : Timestamp.now(),
+        createdAt: editingRecord ? (editingRecord as any).createdAt : Timestamp.now(),
     };
 
     try {
         if (editingRecord) {
-            await updateDoc(doc(db, 'records', editingRecord.id), data);
+            await updateDoc(doc(db, 'users', user.uid, collectionName, editingRecord.id), data);
             toast({ title: 'Success', description: 'Record updated successfully.' });
         } else {
-            await addDoc(collection(db, 'records'), data);
+            await addDoc(collection(db, 'users', user.uid, collectionName), data);
             toast({ title: 'Success', description: 'Record added successfully.' });
         }
         setIsDialogOpen(false);
@@ -85,10 +93,11 @@ export function RecordsClient() {
     }
   };
 
-  const handleDeleteRecord = async (id: string) => {
+  const handleDeleteRecord = async (record: FinancialRecord) => {
     if (!user || !db) return;
+    const collectionName = recordTypeToCollectionName[record.recordType];
     try {
-      await deleteDoc(doc(db, 'records', id));
+      await deleteDoc(doc(db, 'users', user.uid, collectionName, record.id));
       toast({ title: 'Success', description: 'Record deleted successfully.' });
     } catch (error) {
       console.error("Error deleting record:", error);

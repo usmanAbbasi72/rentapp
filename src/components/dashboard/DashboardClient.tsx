@@ -23,26 +23,22 @@ export function DashboardClient() {
     if (!user || !db) return;
     setLoading(true);
 
-    const recordsRef = collection(db, 'records');
+    const transactionsRef = collection(db, 'users', user.uid, 'dailyMoneyUseRecords');
+    const debtsRef = collection(db, 'users', user.uid, 'moneyOwedRecords');
+    const receivablesRef = collection(db, 'users', user.uid, 'moneyRemainingRecords');
 
     const qTransactions = query(
-      recordsRef,
-      where('userId', '==', user.uid),
-      where('recordType', '==', 'transaction'),
+      transactionsRef,
       orderBy('date', 'desc'),
       limit(5)
     );
     const qDebts = query(
-      recordsRef,
-      where('userId', '==', user.uid),
-      where('recordType', '==', 'debt'),
+      debtsRef,
       where('isPaid', '==', false),
       orderBy('dueDate', 'asc')
     );
     const qReceivables = query(
-      recordsRef,
-      where('userId', '==', user.uid),
-      where('recordType', '==', 'receivable'),
+      receivablesRef,
       where('isReceived', '==', false),
       orderBy('dueDate', 'asc')
     );
@@ -51,6 +47,9 @@ export function DashboardClient() {
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Transaction[];
       setTransactions(data);
       setLoading(false);
+    }, (error) => {
+        console.error("Error fetching transactions:", error);
+        setLoading(false);
     });
 
     const unsubDebts = onSnapshot(qDebts, (snapshot) => {

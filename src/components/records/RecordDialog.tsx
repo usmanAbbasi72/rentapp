@@ -29,6 +29,7 @@ import { CalendarIcon } from 'lucide-react';
 import { Calendar } from '../ui/calendar';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
+import { useUser } from '@/firebase';
 
 interface RecordDialogProps {
   isOpen: boolean;
@@ -57,6 +58,7 @@ type FormValues = z.infer<typeof transactionSchema> | z.infer<typeof debtReceiva
 
 export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogProps) {
   const [activeTab, setActiveTab] = useState<RecordType>(record?.recordType || 'transaction');
+  const { user } = useUser();
 
   const getSchema = (tab: RecordType) => {
     return tab === 'transaction' ? transactionSchema : debtReceivableSchema;
@@ -69,7 +71,6 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
   
   useEffect(() => {
     form.reset();
-    const schema = getSchema(activeTab);
     const defaultValues: any = {
       description: '',
       amount: 0,
@@ -99,7 +100,8 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
 
 
   const onSubmit = (values: FormValues) => {
-    const dataToSave = { ...values };
+    if (!user) return;
+    const dataToSave: any = { ...values };
     
     if ('date' in dataToSave && dataToSave.date) {
         dataToSave.date = Timestamp.fromDate(dataToSave.date);
@@ -109,18 +111,20 @@ export function RecordDialog({ isOpen, onClose, onSave, record }: RecordDialogPr
     }
     if ('person' in dataToSave) {
         if(activeTab === 'debt') {
-            (dataToSave as any).creditor = dataToSave.person;
-        } else {
-            (dataToSave as any).debtor = dataToSave.person;
+            dataToSave.creditor = dataToSave.person;
+            dataToSave.debtor = user.displayName || user.email; // The user is the debtor
+        } else { // receivable
+            dataToSave.debtor = dataToSave.person;
+            dataToSave.creditor = user.displayName || user.email; // The user is the creditor
         }
-        delete (dataToSave as any).person;
+        delete dataToSave.person;
     }
 
     if (activeTab === 'debt') {
-        (dataToSave as any).isPaid = record ? (record as any).isPaid : false;
+        dataToSave.isPaid = record ? (record as any).isPaid : false;
     }
     if (activeTab === 'receivable') {
-        (dataToSave as any).isReceived = record ? (record as any).isReceived : false;
+        dataToSave.isReceived = record ? (record as any).isReceived : false;
     }
     
     onSave(dataToSave, activeTab);

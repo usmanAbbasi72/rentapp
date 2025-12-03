@@ -8,10 +8,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Transaction, Debt, Receivable, FinancialRecord } from '@/lib/types';
+import type { Transaction, Debt, Receivable, FinancialRecord, RecordType } from '@/lib/types';
 import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
 import { doc, updateDoc, getFirestore } from 'firebase/firestore';
+import { useUser } from '@/firebase';
+
+const recordTypeToCollectionName = {
+    transaction: 'dailyMoneyUseRecords',
+    debt: 'moneyOwedRecords',
+    receivable: 'moneyRemainingRecords',
+};
 
 const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 const formatDate = (timestamp: any) => timestamp?.toDate().toLocaleDateString() ?? '';
@@ -19,7 +26,7 @@ const formatDate = (timestamp: any) => timestamp?.toDate().toLocaleDateString() 
 const createActions = (
   record: FinancialRecord,
   onEdit: (record: FinancialRecord) => void,
-  onDelete: (id: string) => void
+  onDelete: (record: FinancialRecord) => void
 ) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
@@ -30,7 +37,7 @@ const createActions = (
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">
       <DropdownMenuItem onClick={() => onEdit(record)}>Edit</DropdownMenuItem>
-      <DropdownMenuItem onClick={() => onDelete(record.id)} className="text-destructive">
+      <DropdownMenuItem onClick={() => onDelete(record)} className="text-destructive">
         Delete
       </DropdownMenuItem>
     </DropdownMenuContent>
@@ -46,7 +53,7 @@ const createHeader = (title: string, column: any) => (
 
 export const transactionColumns = (
   onEdit: (record: Transaction) => void,
-  onDelete: (id: string) => void
+  onDelete: (record: Transaction) => void
 ): ColumnDef<Transaction>[] => [
   { accessorKey: 'date', header: ({ column }) => createHeader('Date', column), cell: ({ row }) => formatDate(row.original.date) },
   { accessorKey: 'description', header: 'Description' },
@@ -58,18 +65,25 @@ export const transactionColumns = (
   { id: 'actions', cell: ({ row }) => createActions(row.original, onEdit, onDelete) },
 ];
 
-const togglePaidStatus = async (id: string, currentStatus: boolean, field: 'isPaid' | 'isReceived') => {
-  const db = getFirestore();
-  if (!db) return;
-  const recordRef = doc(db, 'records', id);
-  await updateDoc(recordRef, { [field]: !currentStatus });
+const ToggleStatusCheckbox = ({ record, field }: { record: Debt | Receivable, field: 'isPaid' | 'isReceived' }) => {
+    const { user } = useUser();
+  
+    const toggleStatus = async () => {
+      if (!user) return;
+      const db = getFirestore();
+      const collectionName = recordTypeToCollectionName[record.recordType];
+      const recordRef = doc(db, 'users', user.uid, collectionName, record.id);
+      await updateDoc(recordRef, { [field]: !record[field] });
+    };
+  
+    return <Checkbox checked={record[field]} onCheckedChange={toggleStatus} />;
 };
 
 export const debtColumns = (
   onEdit: (record: Debt) => void,
-  onDelete: (id: string) => void
+  onDelete: (record: Debt) => void
 ): ColumnDef<Debt>[] => [
-  { id: 'isPaid', header: 'Paid', cell: ({ row }) => <Checkbox checked={row.original.isPaid} onCheckedChange={() => togglePaidStatus(row.original.id, row.original.isPaid, 'isPaid')} /> },
+  { id: 'isPaid', header: 'Paid', cell: ({ row }) => <ToggleStatusCheckbox record={row.original} field="isPaid" /> },
   { accessorKey: 'creditor', header: 'Owed To' },
   { accessorKey: 'description', header: 'Description' },
   { accessorKey: 'amount', header: ({ column }) => createHeader('Amount', column), cell: ({ row }) => formatCurrency(row.original.amount), sortingFn: 'basic' },
@@ -79,9 +93,9 @@ export const debtColumns = (
 
 export const receivableColumns = (
   onEdit: (record: Receivable) => void,
-  onDelete: (id: string) => void
+  onDelete: (record: Receivable) => void
 ): ColumnDef<Receivable>[] => [
-  { id: 'isReceived', header: 'Received', cell: ({ row }) => <Checkbox checked={row.original.isReceived} onCheckedChange={() => togglePaidStatus(row.original.id, row.original.isReceived, 'isReceived')} /> },
+  { id: 'isReceived', header: 'Received', cell: ({ row }) => <ToggleStatusCheckbox record={row.original} field="isReceived" /> },
   { accessorKey: 'debtor', header: 'Owed By' },
   { accessorKey: 'description', header: 'Description' },
   { accessorKey: 'amount', header: ({ column }) => createHeader('Amount', column), cell: ({ row }) => formatCurrency(row.original.amount), sortingFn: 'basic' },
