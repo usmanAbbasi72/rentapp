@@ -1,3 +1,5 @@
+'use client';
+
 import AppLogo from '@/components/shared/AppLogo';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 
