@@ -7,6 +7,11 @@ import { getFirestore } from 'firebase/firestore'
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
+  // Check if running on the client side
+  if (typeof window === 'undefined') {
+    return { firebaseApp: null, auth: null, firestore: null };
+  }
+
   if (!getApps().length) {
     // Important! initializeApp() is called without any arguments because Firebase App Hosting
     // integrates with the initializeApp() function to provide the environment variables needed to
