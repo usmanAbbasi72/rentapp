@@ -170,7 +170,13 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
  * This provides the User object, loading status, and any auth errors.
  * @returns {UserHookResult} Object with user, isUserLoading, userError.
  */
-export const useUser = (): UserHookResult => { // Renamed from useAuthUser
-  const { user, isUserLoading, userError } = useFirebase(); // Leverages the main hook
+export const useUser = (): UserHookResult => {
+  const context = useContext(FirebaseContext);
+  if (context === undefined) {
+    // On the server, context will be undefined. Return a default loading state.
+    // The client-side will re-render with the correct state once the provider mounts.
+    return { user: null, isUserLoading: true, userError: null };
+  }
+  const { user, isUserLoading, userError } = context;
   return { user, isUserLoading, userError };
 };
