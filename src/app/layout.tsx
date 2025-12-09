@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
-import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
   title: 'Data Keeper',
@@ -33,11 +33,12 @@ export default function RootLayout({
         <meta name="msapplication-TileColor" content="#2B5797" />
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="theme-color" content="#000000" />
+        <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="16x16" />
       </head>
       <body className="font-body antialiased">
-        <FirebaseClientProvider>
+        <Providers>
           {children}
-        </FirebaseClientProvider>
+        </Providers>
         <Toaster />
       </body>
     </html>
