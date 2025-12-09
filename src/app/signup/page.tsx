@@ -1,6 +1,8 @@
 import AppLogo from '@/components/shared/AppLogo';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 
+export const dynamic = 'force-dynamic';
+
 export default function SignUpPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">

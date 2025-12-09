@@ -119,16 +119,9 @@ export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
 
   if (context === undefined) {
-    // During SSR, the context will be undefined. Return a non-error state.
-    // The client-side will re-render with the correct context.
-    return {
-      firebaseApp: null,
-      firestore: null,
-      auth: null,
-      user: null,
-      isUserLoading: true,
-      userError: null,
-    };
+    // This error is thrown to prevent usage of this hook outside of a FirebaseProvider.
+    // It's a critical safety check.
+    throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
 
   return {
@@ -178,8 +171,8 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
 export const useUser = (): UserHookResult => {
   const context = useContext(FirebaseContext);
   if (context === undefined) {
-    // On the server, context will be undefined. Return a default loading state.
-    // The client-side will re-render with the correct state once the provider mounts.
+    // During SSR, context is undefined. Return a default loading state.
+    // The client-side will re-render with the correct state.
     return { user: null, isUserLoading: true, userError: null };
   }
   const { user, isUserLoading, userError } = context;

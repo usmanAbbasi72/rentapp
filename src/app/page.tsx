@@ -7,6 +7,8 @@ import { useAuth } from '@/hooks/use-auth';
 import AppLogo from '@/components/shared/AppLogo';
 import { Skeleton } from '@/components/ui/skeleton';
 
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
