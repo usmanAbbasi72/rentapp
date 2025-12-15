@@ -119,9 +119,14 @@ export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
 
   if (context === undefined) {
-    // This error is thrown to prevent usage of this hook outside of a FirebaseProvider.
-    // It's a critical safety check.
-    throw new Error('useFirebase must be used within a FirebaseProvider.');
+    return {
+      firebaseApp: null,
+      firestore: null,
+      auth: null,
+      user: null,
+      isUserLoading: true,
+      userError: null,
+    };
   }
 
   return {
