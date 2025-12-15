@@ -19,10 +19,18 @@ export function DashboardClient() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !db) return;
+    if (!user || !db) {
+      if (!user && !loading) {
+         setError("User not authenticated.");
+      }
+      return;
+    };
+    
     setLoading(true);
+    setError(null);
 
     const thirtyDaysAgo = Timestamp.fromDate(subDays(new Date(), 30));
 
@@ -36,33 +44,36 @@ export function DashboardClient() {
       orderBy('date', 'desc')
     );
     
-    const qDebts = query(debtsRef);
+    const qDebts = query(debtsRef, orderBy('dueDate', 'asc'));
     
-    const qReceivables = query(receivablesRef);
+    const qReceivables = query(receivablesRef, orderBy('dueDate', 'asc'));
 
     const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Transaction[];
       setTransactions(data);
       setLoading(false);
-    }, (error) => {
-        console.error("Error fetching transactions:", error);
+    }, (err) => {
+        console.error("Error fetching transactions:", err);
+        setError("Failed to load transaction data.");
         setLoading(false);
     });
 
     const unsubDebts = onSnapshot(qDebts, (snapshot) => {
       const allDebts = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Debt[];
-      const outstandingDebts = allDebts
-        .filter(d => !d.isPaid)
-        .sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+      const outstandingDebts = allDebts.filter(d => !d.isPaid)
       setDebts(outstandingDebts);
+    }, (err) => {
+        console.error("Error fetching debts:", err);
+        setError("Failed to load debt data.");
     });
 
     const unsubReceivables = onSnapshot(qReceivables, (snapshot) => {
         const allReceivables = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Receivable[];
-        const outstandingReceivables = allReceivables
-            .filter(r => !r.isReceived)
-            .sort((a, b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        const outstandingReceivables = allReceivables.filter(r => !r.isReceived);
         setReceivables(outstandingReceivables);
+    }, (err) => {
+        console.error("Error fetching receivables:", err);
+        setError("Failed to load receivable data.");
     });
 
     return () => {
@@ -70,7 +81,7 @@ export function DashboardClient() {
       unsubDebts();
       unsubReceivables();
     };
-  }, [user, db]);
+  }, [user, db, loading]);
 
   const summary = useMemo(() => {
     const totalDebt = debts.reduce((acc, debt) => acc + debt.amount, 0);
@@ -103,13 +114,20 @@ export function DashboardClient() {
 
   if (loading) {
     return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Skeleton className="h-32"/>
             <Skeleton className="h-32"/>
             <Skeleton className="h-32"/>
             <Skeleton className="h-32"/>
+            <div className="lg:col-span-4"><Skeleton className="h-80"/></div>
+            <div className="lg:col-span-2"><Skeleton className="h-64"/></div>
+            <div className="lg:col-span-2"><Skeleton className="h-64"/></div>
         </div>
     );
+  }
+
+  if (error) {
+    return <div className="text-center text-destructive p-8">{error}</div>;
   }
 
   return (
@@ -229,3 +247,5 @@ export function DashboardClient() {
     </div>
   );
 }
+
+    
