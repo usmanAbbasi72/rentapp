@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useMemo, type ReactNode } from 'react';
-import { FirebaseProvider } from '@/firebase/provider';
-import { initializeFirebase } from '@/firebase/index';
+import { FirebaseProvider, getSdks } from '@/firebase/provider';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import type { FirebaseApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
+import { firebaseConfig } from '@/firebase/config';
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
@@ -13,8 +14,15 @@ interface FirebaseClientProviderProps {
 
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
     const firebaseServices = useMemo(() => {
-        // This will now only run on the client, preventing server-side initialization.
-        return initializeFirebase();
+        if (typeof window !== 'undefined') {
+            if (getApps().length === 0 && firebaseConfig.apiKey) {
+                const firebaseApp = initializeApp(firebaseConfig);
+                return getSdks(firebaseApp);
+            } else if (getApps().length > 0) {
+                return getSdks(getApp());
+            }
+        }
+        return { firebaseApp: null, auth: null, firestore: null };
     }, []);
   
     return (
