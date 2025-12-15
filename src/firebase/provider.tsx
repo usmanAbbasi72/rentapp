@@ -119,6 +119,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
 
   if (context === undefined) {
+    // During SSR or when provider is not yet mounted, return a safe loading state.
     return {
       firebaseApp: null,
       firestore: null,
