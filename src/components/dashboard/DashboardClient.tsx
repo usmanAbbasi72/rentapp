@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
 import type { Transaction, Debt, Receivable } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
+import { subDays } from 'date-fns';
 
 export function DashboardClient() {
   const { user } = useUser();
@@ -23,20 +24,20 @@ export function DashboardClient() {
     if (!user || !db) return;
     setLoading(true);
 
+    const thirtyDaysAgo = Timestamp.fromDate(subDays(new Date(), 30));
+
     const transactionsRef = collection(db, 'users', user.uid, 'dailyMoneyUseRecords');
     const debtsRef = collection(db, 'users', user.uid, 'moneyOwedRecords');
     const receivablesRef = collection(db, 'users', user.uid, 'moneyRemainingRecords');
 
     const qTransactions = query(
       transactionsRef,
-      orderBy('date', 'desc'),
-      limit(5)
+      where('date', '>=', thirtyDaysAgo),
+      orderBy('date', 'desc')
     );
     
-    // Fetch all debts and filter/sort on the client
     const qDebts = query(debtsRef);
     
-    // Fetch all receivables and filter/sort on the client
     const qReceivables = query(receivablesRef);
 
     const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
@@ -88,7 +89,8 @@ export function DashboardClient() {
     const expensesByCategory = transactions
       .filter((t) => t.type === 'expense')
       .reduce((acc, t) => {
-        acc[t.category] = (acc[t.category] || 0) + t.amount;
+        const category = t.category || 'Uncategorized';
+        acc[category] = (acc[category] || 0) + t.amount;
         return acc;
       }, {} as { [key: string]: number });
 
@@ -111,8 +113,28 @@ export function DashboardClient() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="grid gap-6 md:grid-cols-2 lg:col-span-3">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Income (Last 30 Days)</CardTitle>
+                    <DollarSign className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.totalIncome)}</div>
+                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => t.type === 'income').length} transaction(s)</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Expenses (Last 30 Days)</CardTitle>
+                    <DollarSign className="h-4 w-4 text-red-500" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.totalExpense)}</div>
+                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => t.type === 'expense').length} transaction(s)</p>
+                </CardContent>
+            </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Money Owed To You</CardTitle>
@@ -135,10 +157,10 @@ export function DashboardClient() {
             </Card>
         </div>
 
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-4">
             <Card>
                 <CardHeader>
-                    <CardTitle>Expense Analysis</CardTitle>
+                    <CardTitle>Expense Analysis (Last 30 Days)</CardTitle>
                 </CardHeader>
                 <CardContent className="pl-2">
                     {expenseChartData.length > 0 ? (
@@ -155,7 +177,7 @@ export function DashboardClient() {
             </Card>
         </div>
         
-        <div className="lg:col-span-3 grid gap-6 md:grid-cols-2">
+        <div className="lg:col-span-4 grid gap-6 md:grid-cols-2">
             <Card>
                 <CardHeader>
                     <CardTitle>Recent Transactions</CardTitle>
@@ -163,7 +185,7 @@ export function DashboardClient() {
                 <CardContent>
                     <Table>
                         <TableBody>
-                            {transactions.length > 0 ? transactions.map(t => (
+                            {transactions.length > 0 ? transactions.slice(0, 5).map(t => (
                                 <TableRow key={t.id}>
                                     <TableCell>
                                         <div className="font-medium">{t.description}</div>
