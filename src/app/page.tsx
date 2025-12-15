@@ -14,25 +14,32 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // If auth is not loading and a user exists, redirect to the dashboard.
     if (!loading && user) {
       router.push('/dashboard');
     }
   }, [user, loading, router]);
 
-  if (loading || (!loading && user)) {
+  // While loading, or if a user is found (and we're about to redirect), show a loading skeleton.
+  if (loading || user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="w-full max-w-sm space-y-6">
-          <Skeleton className="h-12 w-12" />
+          <div className="flex justify-center">
+            <Skeleton className="h-12 w-12" />
+          </div>
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-4 w-1/2" />
+          <div className="text-center">
+             <Skeleton className="h-4 w-3/4 mx-auto" />
+          </div>
         </div>
       </div>
     );
   }
 
+  // If not loading and no user is found, show the login form.
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
