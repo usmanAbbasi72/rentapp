@@ -118,7 +118,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
 
-  if (context === undefined) {
+  if (context === undefined || !context.areServicesAvailable) {
     // During SSR or when provider is not yet mounted, return a safe loading state.
     return {
       firebaseApp: null,

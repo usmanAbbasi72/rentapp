@@ -16,12 +16,6 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
         // This will now only run on the client, preventing server-side initialization.
         return initializeFirebase();
     }, []);
-
-    // If services are not initialized (e.g., on the server, or before memo runs),
-    // just render the children. The hooks are designed to handle this.
-    if (!firebaseServices.firebaseApp || !firebaseServices.auth || !firebaseServices.firestore) {
-        return <>{children}</>;
-    }
   
     return (
       <FirebaseProvider

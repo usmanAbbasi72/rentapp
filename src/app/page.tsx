@@ -37,8 +37,6 @@ export default function LoginPage() {
     );
   }
 
-  // After loading, if there's still no user, show the login form.
-  // The useEffect above will handle redirection if a user object exists.
   if (!user) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
