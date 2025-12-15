@@ -9,6 +9,8 @@ import { UserNav } from '@/components/shared/UserNav';
 import AppLogo from '@/components/shared/AppLogo';
 import { Skeleton } from '@/components/ui/skeleton';
 
+export const dynamic = 'force-dynamic';
+
 export default function DashboardLayout({
   children,
 }: {
