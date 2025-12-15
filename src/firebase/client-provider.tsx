@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, type ReactNode } from 'react';
+import React, { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { FirebaseProvider } from '@/firebase/provider';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import type { FirebaseApp } from 'firebase/app';
@@ -13,26 +13,43 @@ interface FirebaseClientProviderProps {
   children: ReactNode;
 }
 
+interface FirebaseServices {
+  firebaseApp: FirebaseApp | null;
+  auth: Auth | null;
+  firestore: Firestore | null;
+}
+
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
-    const firebaseServices = useMemo(() => {
-        if (typeof window !== 'undefined') {
-            if (getApps().length === 0 && firebaseConfig.apiKey) {
-                const firebaseApp = initializeApp(firebaseConfig);
-                return getSdks(firebaseApp);
-            } else if (getApps().length > 0) {
-                return getSdks(getApp());
-            }
+  const [firebaseServices, setFirebaseServices] = useState<FirebaseServices>({
+    firebaseApp: null,
+    auth: null,
+    firestore: null,
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      let app;
+      if (getApps().length === 0) {
+        if (firebaseConfig.apiKey) {
+          app = initializeApp(firebaseConfig);
+        } else {
+          console.warn("Firebase config not found, skipping initialization.");
+          return;
         }
-        return { firebaseApp: null, auth: null, firestore: null };
-    }, []);
-  
-    return (
-      <FirebaseProvider
-        firebaseApp={firebaseServices.firebaseApp as FirebaseApp}
-        auth={firebaseServices.auth as Auth}
-        firestore={firebaseServices.firestore as Firestore}
-      >
-        {children}
-      </FirebaseProvider>
-    );
+      } else {
+        app = getApp();
+      }
+      setFirebaseServices(getSdks(app));
+    }
+  }, []);
+
+  return (
+    <FirebaseProvider
+      firebaseApp={firebaseServices.firebaseApp}
+      auth={firebaseServices.auth}
+      firestore={firebaseServices.firestore}
+    >
+      {children}
+    </FirebaseProvider>
+  );
 }
