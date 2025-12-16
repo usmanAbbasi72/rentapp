@@ -1,14 +1,13 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, Timestamp, limit } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
 import type { Transaction, Debt, Receivable } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
-import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Table, TableBody, TableCell, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { subDays } from 'date-fns';
 
@@ -16,6 +15,7 @@ export function DashboardClient() {
   const { user } = useUser();
   const db = useFirestore();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +44,12 @@ export function DashboardClient() {
       orderBy('date', 'desc')
     );
     
+    const qRecentTransactions = query(
+        transactionsRef,
+        orderBy('date', 'desc'),
+        limit(5)
+    );
+
     const qDebts = query(debtsRef, orderBy('dueDate', 'asc'));
     
     const qReceivables = query(receivablesRef, orderBy('dueDate', 'asc'));
@@ -56,6 +62,13 @@ export function DashboardClient() {
         console.error("Error fetching transactions:", err);
         setError("Failed to load transaction data.");
         setLoading(false);
+    });
+
+    const unsubRecentTransactions = onSnapshot(qRecentTransactions, (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Transaction[];
+        setRecentTransactions(data);
+    }, (error) => {
+        console.error("Error fetching recent transactions:", error);
     });
 
     const unsubDebts = onSnapshot(qDebts, (snapshot) => {
@@ -78,6 +91,7 @@ export function DashboardClient() {
 
     return () => {
       unsubTransactions();
+      unsubRecentTransactions();
       unsubDebts();
       unsubReceivables();
     };
@@ -86,14 +100,14 @@ export function DashboardClient() {
   const summary = useMemo(() => {
     const totalDebt = debts.reduce((acc, debt) => acc + debt.amount, 0);
     const totalReceivable = receivables.reduce((acc, rec) => acc + rec.amount, 0);
-    const totalIncome = transactions
+    const monthlyIncome = transactions
       .filter((t) => t.type === 'income')
       .reduce((acc, t) => acc + t.amount, 0);
-    const totalExpense = transactions
+    const monthlyExpense = transactions
       .filter((t) => t.type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
     
-    return { totalDebt, totalReceivable, totalIncome, totalExpense };
+    return { totalDebt, totalReceivable, monthlyIncome, monthlyExpense };
   }, [transactions, debts, receivables]);
 
   const expenseChartData = useMemo(() => {
@@ -139,7 +153,7 @@ export function DashboardClient() {
                     <DollarSign className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.totalIncome)}</div>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.monthlyIncome)}</div>
                     <p className="text-xs text-muted-foreground">from {transactions.filter(t => t.type === 'income').length} transaction(s)</p>
                 </CardContent>
             </Card>
@@ -149,7 +163,7 @@ export function DashboardClient() {
                     <DollarSign className="h-4 w-4 text-red-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.totalExpense)}</div>
+                    <div className="text-2xl font-bold">{formatCurrency(summary.monthlyExpense)}</div>
                     <p className="text-xs text-muted-foreground">from {transactions.filter(t => t.type === 'expense').length} transaction(s)</p>
                 </CardContent>
             </Card>
@@ -203,7 +217,7 @@ export function DashboardClient() {
                 <CardContent>
                     <Table>
                         <TableBody>
-                            {transactions.length > 0 ? transactions.slice(0, 5).map(t => (
+                            {recentTransactions.length > 0 ? recentTransactions.map(t => (
                                 <TableRow key={t.id}>
                                     <TableCell>
                                         <div className="font-medium">{t.description}</div>
