@@ -11,6 +11,8 @@ import { Button } from '../ui/button';
 import { PlusCircle } from 'lucide-react';
 import { RecordDialog } from './RecordDialog';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MobileCardList } from './MobileCardList';
 
 const recordTypeToCollectionName = {
     transaction: 'dailyMoneyUseRecords',
@@ -28,6 +30,7 @@ export function RecordsClient() {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<FinancialRecord | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!user || !db) return;
@@ -107,22 +110,34 @@ export function RecordsClient() {
 
   return (
     <Tabs defaultValue="transactions" className="w-full">
-        <div className="flex items-center justify-between">
-            <TabsList>
-                <TabsTrigger value="transactions">Transactions</TabsTrigger>
-                <TabsTrigger value="debts">Debts</TabsTrigger>
-                <TabsTrigger value="receivables">Receivables</TabsTrigger>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <TabsList className="w-full sm:w-auto">
+                <TabsTrigger value="transactions" className="flex-1">Transactions</TabsTrigger>
+                <TabsTrigger value="debts" className="flex-1">Debts</TabsTrigger>
+                <TabsTrigger value="receivables" className="flex-1">Receivables</TabsTrigger>
             </TabsList>
-            <Button onClick={() => handleOpenDialog()}><PlusCircle className="mr-2 h-4 w-4"/>Add Record</Button>
+            <Button onClick={() => handleOpenDialog()} className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4"/>Add Record</Button>
         </div>
       <TabsContent value="transactions">
-        <DataTable columns={transactionColumns(handleOpenDialog, handleDeleteRecord)} data={transactions} loading={loading} />
+        {isMobile ? (
+          <MobileCardList data={transactions} loading={loading} onEdit={handleOpenDialog} onDelete={handleDeleteRecord} />
+        ) : (
+          <DataTable columns={transactionColumns(handleOpenDialog, handleDeleteRecord)} data={transactions} loading={loading} />
+        )}
       </TabsContent>
       <TabsContent value="debts">
-        <DataTable columns={debtColumns(handleOpenDialog, handleDeleteRecord)} data={debts} loading={loading} />
+        {isMobile ? (
+          <MobileCardList data={debts} loading={loading} onEdit={handleOpenDialog} onDelete={handleDeleteRecord} />
+        ) : (
+          <DataTable columns={debtColumns(handleOpenDialog, handleDeleteRecord)} data={debts} loading={loading} />
+        )}
       </TabsContent>
       <TabsContent value="receivables">
-        <DataTable columns={receivableColumns(handleOpenDialog, handleDeleteRecord)} data={receivables} loading={loading} />
+        {isMobile ? (
+          <MobileCardList data={receivables} loading={loading} onEdit={handleOpenDialog} onDelete={handleDeleteRecord} />
+        ) : (
+          <DataTable columns={receivableColumns(handleOpenDialog, handleDeleteRecord)} data={receivables} loading={loading} />
+        )}
       </TabsContent>
       {isDialogOpen && (
         <RecordDialog

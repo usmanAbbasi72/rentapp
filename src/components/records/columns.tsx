@@ -20,8 +20,8 @@ const recordTypeToCollectionName = {
     receivable: 'moneyRemainingRecords',
 };
 
-const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-const formatDate = (timestamp: any) => timestamp?.toDate().toLocaleDateString() ?? '';
+export const formatCurrency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(amount);
+export const formatDate = (timestamp: any) => timestamp?.toDate().toLocaleDateString() ?? '';
 
 const createActions = (
   record: FinancialRecord,
@@ -65,7 +65,7 @@ export const transactionColumns = (
   { id: 'actions', cell: ({ row }) => createActions(row.original, onEdit, onDelete) },
 ];
 
-const ToggleStatusCheckbox = ({ record, field }: { record: Debt | Receivable, field: 'isPaid' | 'isReceived' }) => {
+export const ToggleStatusCheckbox = ({ record, field }: { record: Debt | Receivable, field: 'isPaid' | 'isReceived' }) => {
     const { user } = useUser();
   
     const toggleStatus = async () => {
