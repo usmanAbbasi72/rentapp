@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/sidebar';
 import AppLogo from './AppLogo';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, List, LogOut } from 'lucide-react';
+import { Home, List, LogOut, PiggyBank } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase/provider';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -73,6 +73,16 @@ export function DashboardSidebar() {
             >
               <List />
               <span>Records</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname === '/dashboard/savings'}
+              onClick={() => router.push('/dashboard/savings')}
+              tooltip="Savings Plan"
+            >
+              <PiggyBank />
+              <span>Savings Plan</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
