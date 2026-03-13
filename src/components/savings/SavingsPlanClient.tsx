@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, onSnapshot, query, addDoc, orderBy, limit, Timestamp, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
-import type { FinancialRecord, Transaction, Debt, Receivable, SavingsPlan } from '@/lib/types';
+import type { Transaction, Debt, Receivable, SavingsPlan } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, Lightbulb, ShieldAlert, TrendingDown, Wallet, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react';
@@ -12,7 +12,7 @@ import { formatCurrency } from '@/components/records/columns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { startOfMonth, endOfMonth } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export function SavingsPlanClient() {
   const { user } = useUser();
@@ -103,6 +103,18 @@ export function SavingsPlanClient() {
     };
   }, [transactions, activePlan]);
 
+  // Parse strategy into todo items
+  const strategyTasks = useMemo(() => {
+    if (!activePlan?.savingsPlan) return [];
+    
+    // Split by common list delimiters (newlines or numbered lists)
+    return activePlan.savingsPlan
+      .split(/(?=\d+\.)|\n/)
+      .map(item => item.trim())
+      .filter(item => item.length > 5) // Ignore very short fragments
+      .map(item => item.replace(/^\d+\.\s*/, '')); // Remove the leading "1. "
+  }, [activePlan]);
+
   const handleGeneratePlan = async () => {
     if (allRecords.length === 0 || !user || !db) return;
     setIsGenerating(true);
@@ -111,7 +123,7 @@ export function SavingsPlanClient() {
         let isCompleted = false;
         if (r.recordType === 'debt') isCompleted = (r as Debt).isPaid;
         if (r.recordType === 'receivable') isCompleted = (r as Receivable).isReceived;
-        if (r.recordType === 'transaction') isCompleted = true; // Historical transactions are completed by definition
+        if (r.recordType === 'transaction') isCompleted = true;
 
         return {
           description: r.description,
@@ -124,7 +136,6 @@ export function SavingsPlanClient() {
       
       const result = await getSavingsAdvice({ records: cleanRecords, currency: 'PKR' });
       
-      // Store the new plan in Firestore
       const now = new Date();
       const planData = {
         userId: user.uid,
@@ -283,14 +294,26 @@ export function SavingsPlanClient() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Detailed Strategy Plan</CardTitle>
+              <CardTitle className="text-base">Strategic Roadmap</CardTitle>
               <CardDescription>Generated on {activePlan.createdAt.toDate().toLocaleDateString()}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <p className="leading-relaxed text-muted-foreground whitespace-pre-wrap italic border-l-4 pl-4 py-1">
-                  &quot;{activePlan.savingsPlan}&quot;
-                </p>
+              <div className="space-y-4">
+                {strategyTasks.length > 0 ? strategyTasks.map((task, idx) => (
+                  <div key={idx} className="flex items-start gap-3 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors shadow-sm">
+                    <Checkbox id={`task-${idx}`} className="mt-1" />
+                    <label 
+                      htmlFor={`task-${idx}`} 
+                      className="text-sm leading-relaxed cursor-pointer select-none font-medium"
+                    >
+                      {task}
+                    </label>
+                  </div>
+                )) : (
+                  <p className="text-sm text-muted-foreground italic border-l-4 pl-4 py-1">
+                    {activePlan.savingsPlan}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
