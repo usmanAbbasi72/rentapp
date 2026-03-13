@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -28,16 +27,6 @@ export function SavingsPlanClient() {
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Combine all records for analysis
-  const allRecords = useMemo(() => {
-    return [
-      ...transactions.map(t => ({ ...t, recordType: 'transaction' as const })),
-      ...debts.map(d => ({ ...d, recordType: 'debt' as const })),
-      ...receivables.map(r => ({ ...r, recordType: 'receivable' as const })),
-    ];
-  }, [transactions, debts, receivables]);
-
-  // Fetch records and the latest saved plan
   useEffect(() => {
     if (!user || !db) return;
 
@@ -78,7 +67,14 @@ export function SavingsPlanClient() {
     };
   }, [user, db]);
 
-  // Compliance Tracking Logic
+  const allRecords = useMemo(() => {
+    return [
+      ...transactions.map(t => ({ ...t, recordType: 'transaction' as const })),
+      ...debts.map(d => ({ ...d, recordType: 'debt' as const })),
+      ...receivables.map(r => ({ ...r, recordType: 'receivable' as const })),
+    ];
+  }, [transactions, debts, receivables]);
+
   const monthPerformance = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -107,10 +103,8 @@ export function SavingsPlanClient() {
     };
   }, [transactions, activePlan]);
 
-  // Parse strategy into todo items
   const strategyTasks = useMemo(() => {
     if (!activePlan?.savingsPlan) return [];
-    
     return activePlan.savingsPlan
       .split(/(?=\d+\.)|\n/)
       .map(item => item.trim())
@@ -125,16 +119,13 @@ export function SavingsPlanClient() {
 
   const handleToggleTask = async (index: number) => {
     if (!activePlan || !user || !db) return;
-    
     const currentCompleted = activePlan.completedTasks || [];
     let newCompleted;
-    
     if (currentCompleted.includes(index)) {
       newCompleted = currentCompleted.filter(i => i !== index);
     } else {
       newCompleted = [...currentCompleted, index];
     }
-
     const planRef = doc(db, 'users', user.uid, 'savingsPlans', activePlan.id);
     updateDoc(planRef, { completedTasks: newCompleted });
   };
@@ -148,7 +139,6 @@ export function SavingsPlanClient() {
         if (r.recordType === 'debt') isCompleted = (r as Debt).isPaid;
         if (r.recordType === 'receivable') isCompleted = (r as Receivable).isReceived;
         if (r.recordType === 'transaction') isCompleted = true;
-
         return {
           description: r.description,
           amount: r.amount,
@@ -159,7 +149,6 @@ export function SavingsPlanClient() {
       });
       
       const result = await getSavingsAdvice({ records: cleanRecords, currency: 'PKR' });
-      
       const now = new Date();
       const planData = {
         userId: user.uid,
@@ -172,7 +161,6 @@ export function SavingsPlanClient() {
         month: now.getMonth(),
         year: now.getFullYear()
       };
-
       await addDoc(collection(db, 'users', user.uid, 'savingsPlans'), planData);
       toast({ title: "New Plan Ready", description: "Your improved strategy has been generated." });
     } catch (error) {
@@ -206,7 +194,7 @@ export function SavingsPlanClient() {
           disabled={isGenerating}
           className={cn(
             "gap-2 w-full sm:w-auto",
-            allTasksCompleted && "bg-amber-500 hover:bg-amber-600 animate-pulse"
+            allTasksCompleted && "bg-amber-500 hover:bg-amber-600"
           )}
         >
           {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : (allTasksCompleted ? <Trophy className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />)}
@@ -235,8 +223,6 @@ export function SavingsPlanClient() {
 
       {activePlan && !isGenerating && (
         <div className="grid gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          
-          {/* Compliance Tracker */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
@@ -278,7 +264,7 @@ export function SavingsPlanClient() {
           </Card>
 
           {allTasksCompleted && (
-             <div className="p-6 rounded-2xl bg-amber-50 border-2 border-amber-200 flex flex-col items-center text-center gap-4 animate-bounce-subtle">
+             <div className="p-6 rounded-2xl bg-amber-50 border-2 border-amber-200 flex flex-col items-center text-center gap-4">
                 <div className="p-3 bg-amber-100 rounded-full">
                   <Trophy className="h-8 w-8 text-amber-600" />
                 </div>
@@ -329,7 +315,7 @@ export function SavingsPlanClient() {
                   ))}
                 </ul>
               </CardContent>
-            </div>
+            </Card>
           </div>
 
           <Card className="shadow-sm">
