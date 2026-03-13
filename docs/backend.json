@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "MoneyOwedRecord": {
@@ -125,6 +126,53 @@
         "userId"
       ]
     },
+    "SavingsPlan": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SavingsPlan",
+      "type": "object",
+      "description": "Represents a stored AI savings plan.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "savingsPlan": {
+          "type": "string"
+        },
+        "recommendedMonthlyGoal": {
+          "type": "number"
+        },
+        "tips": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "month": {
+          "type": "number"
+        },
+        "year": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "createdAt",
+        "recommendedMonthlyGoal",
+        "month",
+        "year"
+      ]
+    },
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
@@ -167,7 +215,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profile information. Only the user themselves can access this data.",
+          "description": "Stores user profile information.",
           "params": [
             {
               "name": "userId",
@@ -183,7 +231,7 @@
           "schema": {
             "$ref": "#/backend/entities/MoneyOwedRecord"
           },
-          "description": "Stores records of money owed by the user. Only the user can access these records. Includes 'userId' for path-based access control.",
+          "description": "Stores records of money owed by the user.",
           "params": [
             {
               "name": "userId",
@@ -203,7 +251,7 @@
           "schema": {
             "$ref": "#/backend/entities/MoneyRemainingRecord"
           },
-          "description": "Stores records of money owed to the user. Only the user can access these records. Includes 'userId' for path-based access control.",
+          "description": "Stores records of money owed to the user.",
           "params": [
             {
               "name": "userId",
@@ -223,7 +271,7 @@
           "schema": {
             "$ref": "#/backend/entities/DailyMoneyUseRecord"
           },
-          "description": "Stores records of daily money usage by the user. Only the user can access these records. Includes 'userId' for path-based access control.",
+          "description": "Stores records of daily money usage by the user.",
           "params": [
             {
               "name": "userId",
@@ -235,8 +283,28 @@
             }
           ]
         }
+      },
+      {
+        "path": "/users/{userId}/savingsPlans/{planId}",
+        "definition": {
+          "entityName": "SavingsPlan",
+          "schema": {
+            "$ref": "#/backend/entities/SavingsPlan"
+          },
+          "description": "Stores user's AI-generated savings plans.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The user ID."
+            },
+            {
+              "name": "planId",
+              "description": "Plan ID."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to ensure data isolation and security for each user's financial records. Each user has their own dedicated collections for 'MoneyOwedRecord', 'MoneyRemainingRecord', and 'DailyMoneyUseRecord'. This path-based ownership (`/users/{userId}/...`) provides excellent isolation, simplifies security rules, and enables efficient data retrieval for each user. It eliminates the need for complex queries or filtering based on user IDs, improving performance and security. This structure also promotes authorization independence, as access control is determined by the path itself, eliminating the need for `get()` calls in security rules to verify ownership. Furthermore, this structure is highly scalable, as each user's data is stored separately, minimizing contention and maximizing performance. QAPs are supported because listing operations are naturally scoped to the user's own data, preventing unauthorized access to other users' information."
+    "reasoning": "The Firestore structure uses path-based isolation for all user data, including a new subcollection for SavingsPlans to track financial goals and compliance history."
   }
 }

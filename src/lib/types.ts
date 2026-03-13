@@ -1,3 +1,4 @@
+
 import { Timestamp } from 'firebase/firestore';
 
 export type RecordType = 'transaction' | 'debt' | 'receivable';
@@ -32,6 +33,18 @@ export interface Receivable extends BaseRecord {
   creditor: string; // The user
   dueDate: Timestamp;
   isReceived: boolean;
+}
+
+export interface SavingsPlan {
+  id: string;
+  userId: string;
+  createdAt: Timestamp;
+  summary: string;
+  savingsPlan: string;
+  recommendedMonthlyGoal: number;
+  tips: string[];
+  month: number;
+  year: number;
 }
 
 export type FinancialRecord = Transaction | Debt | Receivable;
