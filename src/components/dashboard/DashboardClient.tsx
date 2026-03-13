@@ -4,17 +4,20 @@ import { collection, query, where, onSnapshot, orderBy, Timestamp, limit } from 
 import { useUser, useFirestore } from '@/firebase/provider';
 import type { Transaction, Debt, Receivable } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle, TrendingUp, TrendingDown, ReceiptText, Calendar as CalendarIcon, Wallet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar as CalendarIcon, ArrowUpRight, ArrowDownLeft, AlertTriangle, TrendingUp, TrendingDown, ReceiptText, Wallet, Filter } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { subDays, format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 export function DashboardClient() {
   const { user } = useUser();
   const db = useFirestore();
+  const [startDate, setStartDate] = useState<Date>(subDays(new Date(), 30));
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -28,7 +31,7 @@ export function DashboardClient() {
     setLoading(true);
     setError(null);
 
-    const thirtyDaysAgo = Timestamp.fromDate(subDays(new Date(), 30));
+    const startTimestamp = Timestamp.fromDate(startDate);
 
     const transactionsRef = collection(db, 'users', user.uid, 'dailyMoneyUseRecords');
     const debtsRef = collection(db, 'users', user.uid, 'moneyOwedRecords');
@@ -36,7 +39,7 @@ export function DashboardClient() {
 
     const qTransactions = query(
       transactionsRef,
-      where('date', '>=', thirtyDaysAgo),
+      where('date', '>=', startTimestamp),
       orderBy('date', 'desc')
     );
     
@@ -86,19 +89,19 @@ export function DashboardClient() {
       unsubDebts();
       unsubReceivables();
     };
-  }, [user, db]);
+  }, [user, db, startDate]);
 
   const summary = useMemo(() => {
     const totalDebt = debts.reduce((acc, debt) => acc + debt.amount, 0);
     const totalReceivable = receivables.reduce((acc, rec) => acc + rec.amount, 0);
-    const monthlyIncome = transactions
+    const periodIncome = transactions
       .filter((t) => t.type === 'income')
       .reduce((acc, t) => acc + t.amount, 0);
-    const monthlyExpense = transactions
+    const periodExpense = transactions
       .filter((t) => t.type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
     
-    return { totalDebt, totalReceivable, monthlyIncome, monthlyExpense };
+    return { totalDebt, totalReceivable, periodIncome, periodExpense };
   }, [transactions, debts, receivables]);
 
   const expenseChartData = useMemo(() => {
@@ -119,7 +122,7 @@ export function DashboardClient() {
     return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(amount);
   }
 
-  if (loading) {
+  if (loading && transactions.length === 0) {
     return (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -153,19 +156,50 @@ export function DashboardClient() {
 
   return (
     <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border bg-card/50 shadow-sm">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Filter className="h-4 w-4 text-primary" />
+              Analysis Period
+            </h2>
+            <p className="text-xs text-muted-foreground">Calculating statistics from the selected date to today.</p>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[260px] justify-start text-left font-normal border-primary/20 hover:border-primary/50", !startDate && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                {startDate ? (
+                  <span className="font-medium text-foreground">Since {format(startDate, "PPP")}</span>
+                ) : (
+                  <span>Pick a start date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={startDate}
+                onSelect={(date) => date && setStartDate(date)}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <StatCard 
-              title="Monthly Income" 
-              amount={summary.monthlyIncome} 
-              subtitle={`From ${transactions.filter(t => t.type === 'income').length} records`} 
+              title="Period Income" 
+              amount={summary.periodIncome} 
+              subtitle={`From ${transactions.filter(t => t.type === 'income').length} income records`} 
               icon={TrendingUp} 
               trendColor="text-emerald-500"
               className="bg-emerald-50/50 dark:bg-emerald-950/10"
             />
              <StatCard 
-              title="Monthly Expenses" 
-              amount={summary.monthlyExpense} 
-              subtitle={`From ${transactions.filter(t => t.type === 'expense').length} records`} 
+              title="Period Expenses" 
+              amount={summary.periodExpense} 
+              subtitle={`From ${transactions.filter(t => t.type === 'expense').length} expense records`} 
               icon={TrendingDown} 
               trendColor="text-rose-500"
               className="bg-rose-50/50 dark:bg-rose-950/10"
@@ -193,7 +227,7 @@ export function DashboardClient() {
               <CardHeader className="flex flex-row items-center justify-between">
                   <div className="space-y-1">
                     <CardTitle className="text-lg">Spending Overview</CardTitle>
-                    <CardDescription>Visual breakdown of your expenses by category</CardDescription>
+                    <CardDescription>Visual breakdown of expenses for this period</CardDescription>
                   </div>
                   <ReceiptText className="h-5 w-5 text-muted-foreground" />
               </CardHeader>
@@ -236,7 +270,7 @@ export function DashboardClient() {
                   ) : (
                     <div className="flex flex-col items-center justify-center py-24 text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
                       <Wallet className="h-10 w-10 mb-2 opacity-20" />
-                      <p className="text-sm">Add some expenses to see the analysis</p>
+                      <p className="text-sm">No expenses recorded for this period</p>
                     </div>
                   )}
               </CardContent>
