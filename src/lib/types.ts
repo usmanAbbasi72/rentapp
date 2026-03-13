@@ -43,6 +43,7 @@ export interface SavingsPlan {
   savingsPlan: string;
   recommendedMonthlyGoal: number;
   tips: string[];
+  completedTasks?: number[]; // Indices of strategy tasks checked off
   month: number;
   year: number;
 }

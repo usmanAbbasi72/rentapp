@@ -157,6 +157,13 @@
             "type": "string"
           }
         },
+        "completedTasks": {
+          "type": "array",
+          "description": "Indices of strategy tasks that the user has completed.",
+          "items": {
+            "type": "number"
+          }
+        },
         "month": {
           "type": "number"
         },

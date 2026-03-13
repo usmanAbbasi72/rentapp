@@ -1,12 +1,13 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, onSnapshot, query, addDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, orderBy, limit, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
 import type { Transaction, Debt, Receivable, SavingsPlan } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Loader2, Lightbulb, ShieldAlert, TrendingDown, Wallet, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react';
+import { Sparkles, Loader2, Lightbulb, ShieldAlert, TrendingDown, Wallet, CheckCircle2, AlertCircle, TrendingUp, Trophy } from 'lucide-react';
 import { getSavingsAdvice } from '@/ai/flows/savings-advisor-flow';
 import { formatCurrency } from '@/components/records/columns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,10 +15,12 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 export function SavingsPlanClient() {
   const { user } = useUser();
   const db = useFirestore();
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [receivables, setReceivables] = useState<Receivable[]>([]);
@@ -115,6 +118,27 @@ export function SavingsPlanClient() {
       .map(item => item.replace(/^\d+\.\s*/, ''));
   }, [activePlan]);
 
+  const allTasksCompleted = useMemo(() => {
+    if (strategyTasks.length === 0) return false;
+    return (activePlan?.completedTasks?.length || 0) === strategyTasks.length;
+  }, [strategyTasks, activePlan]);
+
+  const handleToggleTask = async (index: number) => {
+    if (!activePlan || !user || !db) return;
+    
+    const currentCompleted = activePlan.completedTasks || [];
+    let newCompleted;
+    
+    if (currentCompleted.includes(index)) {
+      newCompleted = currentCompleted.filter(i => i !== index);
+    } else {
+      newCompleted = [...currentCompleted, index];
+    }
+
+    const planRef = doc(db, 'users', user.uid, 'savingsPlans', activePlan.id);
+    updateDoc(planRef, { completedTasks: newCompleted });
+  };
+
   const handleGeneratePlan = async () => {
     if (allRecords.length === 0 || !user || !db) return;
     setIsGenerating(true);
@@ -144,14 +168,16 @@ export function SavingsPlanClient() {
         savingsPlan: result.savingsPlan,
         recommendedMonthlyGoal: result.recommendedMonthlyGoal,
         tips: result.tips,
+        completedTasks: [],
         month: now.getMonth(),
         year: now.getFullYear()
       };
 
       await addDoc(collection(db, 'users', user.uid, 'savingsPlans'), planData);
-      
+      toast({ title: "New Plan Ready", description: "Your improved strategy has been generated." });
     } catch (error) {
       console.error('Error generating plan:', error);
+      toast({ variant: 'destructive', title: "Generation Failed", description: "Could not improve strategy right now." });
     } finally {
       setIsGenerating(false);
     }
@@ -178,10 +204,13 @@ export function SavingsPlanClient() {
         <Button 
           onClick={handleGeneratePlan} 
           disabled={isGenerating}
-          className="gap-2 w-full sm:w-auto"
+          className={cn(
+            "gap-2 w-full sm:w-auto",
+            allTasksCompleted && "bg-amber-500 hover:bg-amber-600 animate-pulse"
+          )}
         >
-          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {activePlan ? 'New Strategy' : 'Initial Strategy'}
+          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : (allTasksCompleted ? <Trophy className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />)}
+          {allTasksCompleted ? 'Improve Strategy' : (activePlan ? 'Refresh Strategy' : 'Initial Strategy')}
         </Button>
       </div>
 
@@ -245,16 +274,23 @@ export function SavingsPlanClient() {
                 </div>
                 <Progress value={Math.min(100, Math.max(0, monthPerformance.progress))} className="h-2" />
               </div>
-              {!isOnTrack && monthPerformance.savings < 0 && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-100">
-                  <p className="text-xs text-red-600 font-medium flex items-center gap-2">
-                    <AlertCircle className="h-3 w-3" />
-                    Alert: Monthly spending exceeds income.
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
+
+          {allTasksCompleted && (
+             <div className="p-6 rounded-2xl bg-amber-50 border-2 border-amber-200 flex flex-col items-center text-center gap-4 animate-bounce-subtle">
+                <div className="p-3 bg-amber-100 rounded-full">
+                  <Trophy className="h-8 w-8 text-amber-600" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-amber-900">Roadmap Complete!</h3>
+                  <p className="text-sm text-amber-700">You've finished all your strategic tasks. Ready to level up your plan?</p>
+                </div>
+                <Button onClick={handleGeneratePlan} variant="default" className="bg-amber-600 hover:bg-amber-700">
+                  Improve My Plan Now
+                </Button>
+             </div>
+          )}
 
           <div className="grid gap-6 md:grid-cols-2">
             <Card className="shadow-sm">
@@ -272,9 +308,6 @@ export function SavingsPlanClient() {
                       <span className="leading-relaxed">{tip}</span>
                     </li>
                   ))}
-                  {activePlan.tips.filter(tip => /reduce|cut|stop|limit|avoid/i.test(tip)).length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">No specific restrictions identified.</p>
-                  )}
                 </ul>
               </CardContent>
             </Card>
@@ -296,7 +329,7 @@ export function SavingsPlanClient() {
                   ))}
                 </ul>
               </CardContent>
-            </Card>
+            </div>
           </div>
 
           <Card className="shadow-sm">
@@ -306,17 +339,34 @@ export function SavingsPlanClient() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {strategyTasks.length > 0 ? strategyTasks.map((task, idx) => (
-                  <div key={idx} className="flex items-start gap-3 p-3 md:p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors shadow-sm">
-                    <Checkbox id={`task-${idx}`} className="mt-1" />
-                    <label 
-                      htmlFor={`task-${idx}`} 
-                      className="text-xs md:text-sm leading-relaxed cursor-pointer select-none font-medium text-foreground/90"
+                {strategyTasks.length > 0 ? strategyTasks.map((task, idx) => {
+                  const isChecked = activePlan.completedTasks?.includes(idx);
+                  return (
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "flex items-start gap-3 p-3 md:p-4 rounded-xl border transition-all shadow-sm",
+                        isChecked ? "bg-muted/50 border-muted opacity-60" : "bg-card hover:bg-muted/30 border-primary/10"
+                      )}
                     >
-                      {task}
-                    </label>
-                  </div>
-                )) : (
+                      <Checkbox 
+                        id={`task-${idx}`} 
+                        className="mt-1" 
+                        checked={isChecked}
+                        onCheckedChange={() => handleToggleTask(idx)}
+                      />
+                      <label 
+                        htmlFor={`task-${idx}`} 
+                        className={cn(
+                          "text-xs md:text-sm leading-relaxed cursor-pointer select-none font-medium",
+                          isChecked ? "line-through text-muted-foreground" : "text-foreground/90"
+                        )}
+                      >
+                        {task}
+                      </label>
+                    </div>
+                  );
+                }) : (
                   <p className="text-sm text-muted-foreground italic border-l-4 pl-4 py-1">
                     {activePlan.savingsPlan}
                   </p>
