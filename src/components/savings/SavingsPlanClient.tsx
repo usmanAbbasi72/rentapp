@@ -1,14 +1,13 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, query, addDoc, orderBy, limit, Timestamp, where } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
-import type { FinancialRecord, Transaction, SavingsPlan } from '@/lib/types';
+import type { FinancialRecord, Transaction, Debt, Receivable, SavingsPlan } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Loader2, Target, Lightbulb, ShieldAlert, TrendingDown, Wallet, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react';
-import { getSavingsAdvice, type SavingsAdvisorOutput } from '@/ai/flows/savings-advisor-flow';
+import { Sparkles, Loader2, Lightbulb, ShieldAlert, TrendingDown, Wallet, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react';
+import { getSavingsAdvice } from '@/ai/flows/savings-advisor-flow';
 import { formatCurrency } from '@/components/records/columns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
@@ -18,25 +17,44 @@ import { startOfMonth, endOfMonth } from 'date-fns';
 export function SavingsPlanClient() {
   const { user } = useUser();
   const db = useFirestore();
-  const [allRecords, setAllRecords] = useState<FinancialRecord[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [activePlan, setActivePlan] = useState<SavingsPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Combine all records for analysis
+  const allRecords = useMemo(() => {
+    return [
+      ...transactions.map(t => ({ ...t, recordType: 'transaction' as const })),
+      ...debts.map(d => ({ ...d, recordType: 'debt' as const })),
+      ...receivables.map(r => ({ ...r, recordType: 'receivable' as const })),
+    ];
+  }, [transactions, debts, receivables]);
 
   // Fetch records and the latest saved plan
   useEffect(() => {
     if (!user || !db) return;
 
-    const currentMonthStart = Timestamp.fromDate(startOfMonth(new Date()));
-    const currentMonthEnd = Timestamp.fromDate(endOfMonth(new Date()));
-
     const transactionsRef = collection(db, 'users', user.uid, 'dailyMoneyUseRecords');
+    const debtsRef = collection(db, 'users', user.uid, 'moneyOwedRecords');
+    const receivablesRef = collection(db, 'users', user.uid, 'moneyRemainingRecords');
     const plansRef = collection(db, 'users', user.uid, 'savingsPlans');
 
     const unsubTransactions = onSnapshot(transactionsRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), recordType: 'transaction' })) as Transaction[];
-      setAllRecords(data);
-      setLoading(false);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+      setTransactions(data);
+    });
+
+    const unsubDebts = onSnapshot(debtsRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Debt[];
+      setDebts(data);
+    });
+
+    const unsubReceivables = onSnapshot(receivablesRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Receivable[];
+      setReceivables(data);
     });
 
     const qPlans = query(plansRef, orderBy('createdAt', 'desc'), limit(1));
@@ -45,10 +63,13 @@ export function SavingsPlanClient() {
         const data = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as SavingsPlan;
         setActivePlan(data);
       }
+      setLoading(false);
     });
 
     return () => {
       unsubTransactions();
+      unsubDebts();
+      unsubReceivables();
       unsubPlans();
     };
   }, [user, db]);
@@ -59,11 +80,10 @@ export function SavingsPlanClient() {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    const monthTransactions = allRecords.filter(r => {
-      if (r.recordType !== 'transaction') return false;
-      const date = (r as Transaction).date.toDate();
+    const monthTransactions = transactions.filter(t => {
+      const date = t.date.toDate();
       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-    }) as Transaction[];
+    });
 
     const totalIncome = monthTransactions
       .filter(t => t.type === 'income')
@@ -81,18 +101,26 @@ export function SavingsPlanClient() {
       savings: actualSavings,
       progress: activePlan ? (actualSavings / activePlan.recommendedMonthlyGoal) * 100 : 0
     };
-  }, [allRecords, activePlan]);
+  }, [transactions, activePlan]);
 
   const handleGeneratePlan = async () => {
     if (allRecords.length === 0 || !user || !db) return;
     setIsGenerating(true);
     try {
-      const cleanRecords = allRecords.map(r => ({
-        description: r.description,
-        amount: r.amount,
-        type: (r as any).type || undefined,
-        recordType: r.recordType,
-      }));
+      const cleanRecords = allRecords.map(r => {
+        let isCompleted = false;
+        if (r.recordType === 'debt') isCompleted = (r as Debt).isPaid;
+        if (r.recordType === 'receivable') isCompleted = (r as Receivable).isReceived;
+        if (r.recordType === 'transaction') isCompleted = true; // Historical transactions are completed by definition
+
+        return {
+          description: r.description,
+          amount: r.amount,
+          type: (r as any).type || undefined,
+          recordType: r.recordType,
+          isCompleted,
+        };
+      });
       
       const result = await getSavingsAdvice({ records: cleanRecords, currency: 'PKR' });
       

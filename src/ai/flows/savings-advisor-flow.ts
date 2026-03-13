@@ -12,8 +12,9 @@ import { z } from 'genkit';
 const FinancialRecordSchema = z.object({
   description: z.string(),
   amount: z.number(),
-  type: z.string().optional(), // 'income' or 'expense'
+  type: z.string().optional(), // 'income' or 'expense' (for transactions)
   recordType: z.string(), // 'transaction', 'debt', 'receivable'
+  isCompleted: z.boolean().optional(), // true if debt isPaid or receivable isReceived
 });
 
 const SavingsAdvisorInputSchema = z.object({
@@ -43,14 +44,20 @@ Analyze the following financial records for a user. The currency is {{{currency}
 
 Records:
 {{#each records}}
-- {{recordType}}: {{description}}, Amount: {{amount}}{{#if type}}, Type: {{type}}{{/if}}
+- {{recordType}}: {{description}}, Amount: {{amount}}{{#if type}}, Type: {{type}}{{/if}}{{#if isCompleted}}, Status: Settled/Paid{{else}}, Status: Outstanding/Pending{{/if}}
 {{/each}}
 
+Contextual Guidelines:
+1. "Settled/Paid" records represent money that has already moved (e.g., a debt that was paid or money that was received).
+2. "Outstanding/Pending" records represent future cash flow needs (e.g., money yet to be paid or received).
+3. Use historical transactions to identify spending patterns.
+4. Use outstanding debts/receivables to forecast upcoming financial pressure or relief.
+
 Based on this data:
-1. Summarize their current financial situation (income vs expenses, debt burden).
-2. Create a realistic savings plan.
+1. Summarize their current financial situation (income vs expenses, debt burden, pending receivables).
+2. Create a realistic savings plan that prioritizes clearing outstanding debts while maintaining a safety net.
 3. Suggest a specific monthly savings goal in {{{currency}}}.
-4. Provide 3-5 actionable tips to reduce expenses or manage debts better.
+4. Provide 3-5 actionable tips to reduce expenses or manage pending debts/receivables better.
 
 Be encouraging and professional.`,
 });
