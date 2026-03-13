@@ -48,6 +48,7 @@ export function DashboardSidebar() {
     { label: 'Dashboard', icon: Home, href: '/dashboard' },
     { label: 'Records', icon: List, href: '/dashboard/records' },
     { label: 'Savings Plan', icon: PiggyBank, href: '/dashboard/savings' },
+    { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
   ];
 
   return (

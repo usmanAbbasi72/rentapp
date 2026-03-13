@@ -2,22 +2,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, Timestamp, limit } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
+import { useSettings } from '@/context/settings-context';
 import type { Transaction, Debt, Receivable } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, ArrowUpRight, ArrowDownLeft, AlertTriangle, TrendingUp, TrendingDown, ReceiptText, Wallet, Filter } from 'lucide-react';
+import { Calendar as CalendarIcon, ArrowUpRight, ArrowDownLeft, AlertTriangle, TrendingUp, TrendingDown, ReceiptText, Wallet, Settings } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import { subDays, format } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useRouter } from 'next/navigation';
 
 export function DashboardClient() {
   const { user } = useUser();
   const db = useFirestore();
-  const [startDate, setStartDate] = useState<Date>(subDays(new Date(), 30));
+  const router = useRouter();
+  const { analysisStartDate } = useSettings();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -31,7 +32,7 @@ export function DashboardClient() {
     setLoading(true);
     setError(null);
 
-    const startTimestamp = Timestamp.fromDate(startDate);
+    const startTimestamp = Timestamp.fromDate(analysisStartDate);
 
     const transactionsRef = collection(db, 'users', user.uid, 'dailyMoneyUseRecords');
     const debtsRef = collection(db, 'users', user.uid, 'moneyOwedRecords');
@@ -89,7 +90,7 @@ export function DashboardClient() {
       unsubDebts();
       unsubReceivables();
     };
-  }, [user, db, startDate]);
+  }, [user, db, analysisStartDate]);
 
   const summary = useMemo(() => {
     const totalDebt = debts.reduce((acc, debt) => acc + debt.amount, 0);
@@ -156,35 +157,23 @@ export function DashboardClient() {
 
   return (
     <div className="space-y-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border bg-card/50 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border bg-card/50 shadow-sm border-primary/10">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              Analysis Period
+              <CalendarIcon className="h-4 w-4 text-primary" />
+              Active Analysis Period
             </h2>
-            <p className="text-xs text-muted-foreground">Calculating statistics from the selected date to today.</p>
+            <p className="text-xs text-muted-foreground">Showing data since {format(analysisStartDate, "PPP")}.</p>
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[260px] justify-start text-left font-normal border-primary/20 hover:border-primary/50", !startDate && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                {startDate ? (
-                  <span className="font-medium text-foreground">Since {format(startDate, "PPP")}</span>
-                ) : (
-                  <span>Pick a start date</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={startDate}
-                onSelect={(date) => date && setStartDate(date)}
-                disabled={(date) => date > new Date()}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2 border-primary/20 hover:border-primary/50"
+            onClick={() => router.push('/dashboard/settings')}
+          >
+            <Settings className="h-4 w-4" />
+            Adjust in Settings
+          </Button>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
