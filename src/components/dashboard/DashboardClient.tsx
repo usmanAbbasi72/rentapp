@@ -157,25 +157,6 @@ export function DashboardClient() {
 
   return (
     <div className="space-y-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border bg-card/50 shadow-sm border-primary/10">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-primary" />
-              Active Analysis Period
-            </h2>
-            <p className="text-xs text-muted-foreground">Showing data since {format(analysisStartDate, "PPP")}.</p>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2 border-primary/20 hover:border-primary/50"
-            onClick={() => router.push('/dashboard/settings')}
-          >
-            <Settings className="h-4 w-4" />
-            Adjust in Settings
-          </Button>
-        </div>
-
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <StatCard 
               title="Period Income" 
