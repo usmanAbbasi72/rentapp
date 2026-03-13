@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 
 export function SavingsPlanClient() {
   const { user } = useUser();
@@ -107,12 +108,11 @@ export function SavingsPlanClient() {
   const strategyTasks = useMemo(() => {
     if (!activePlan?.savingsPlan) return [];
     
-    // Split by common list delimiters (newlines or numbered lists)
     return activePlan.savingsPlan
       .split(/(?=\d+\.)|\n/)
       .map(item => item.trim())
-      .filter(item => item.length > 5) // Ignore very short fragments
-      .map(item => item.replace(/^\d+\.\s*/, '')); // Remove the leading "1. "
+      .filter(item => item.length > 5)
+      .map(item => item.replace(/^\d+\.\s*/, ''));
   }, [activePlan]);
 
   const handleGeneratePlan = async () => {
@@ -173,15 +173,15 @@ export function SavingsPlanClient() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Financial Intelligence & Tracking</h2>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <h2 className="text-lg md:text-xl font-semibold text-center sm:text-left">Intelligence & Tracking</h2>
         <Button 
           onClick={handleGeneratePlan} 
           disabled={isGenerating}
-          className="gap-2"
+          className="gap-2 w-full sm:w-auto"
         >
           {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {activePlan ? 'Generate New Strategy' : 'Generate Initial Strategy'}
+          {activePlan ? 'New Strategy' : 'Initial Strategy'}
         </Button>
       </div>
 
@@ -190,17 +190,17 @@ export function SavingsPlanClient() {
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Wallet className="mb-4 h-12 w-12 text-muted-foreground opacity-20" />
             <h3 className="text-lg font-medium">No strategy generated yet</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              Connect your records and click the button above to let AI analyze your data and create a tracked savings plan.
+            <p className="text-sm text-muted-foreground max-w-sm px-4">
+              Connect your records and let AI create a tracked savings plan.
             </p>
           </CardContent>
         </Card>
       )}
 
       {isGenerating && (
-        <div className="flex flex-col items-center justify-center py-24 space-y-4">
+        <div className="flex flex-col items-center justify-center py-24 space-y-4 px-4 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-lg font-medium animate-pulse text-primary">AI is analyzing your spending patterns...</p>
+          <p className="text-base md:text-lg font-medium animate-pulse text-primary">Analyzing your patterns...</p>
         </div>
       )}
 
@@ -209,13 +209,16 @@ export function SavingsPlanClient() {
           
           {/* Compliance Tracker */}
           <Card className="border-primary/20 bg-primary/5">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <CardTitle className="text-base md:text-lg flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-primary" />
-                  Current Month Compliance
+                  Monthly Compliance
                 </CardTitle>
-                <Badge variant={isOnTrack ? "secondary" : "outline"} className={isOnTrack ? "bg-green-100 text-green-700 border-green-200" : "bg-amber-100 text-amber-700 border-amber-200"}>
+                <Badge variant={isOnTrack ? "secondary" : "outline"} className={cn(
+                  "px-2 py-0.5 text-xs",
+                  isOnTrack ? "bg-green-100 text-green-700 border-green-200" : "bg-amber-100 text-amber-700 border-amber-200"
+                )}>
                   {isOnTrack ? (
                     <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> On Track</span>
                   ) : (
@@ -223,68 +226,72 @@ export function SavingsPlanClient() {
                   )}
                 </Badge>
               </div>
-              <CardDescription>Tracking your real-time savings against the plan.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-end justify-between">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase font-semibold">Actual Savings</p>
-                  <p className="text-3xl font-bold">{formatCurrency(monthPerformance.savings)}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Actual Savings</p>
+                  <p className="text-2xl md:text-3xl font-bold">{formatCurrency(monthPerformance.savings)}</p>
                 </div>
-                <div className="text-right space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase font-semibold">Target Goal</p>
-                  <p className="text-xl font-semibold text-muted-foreground">{formatCurrency(activePlan.recommendedMonthlyGoal)}</p>
+                <div className="sm:text-right space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Target Goal</p>
+                  <p className="text-lg md:text-xl font-semibold text-muted-foreground">{formatCurrency(activePlan.recommendedMonthlyGoal)}</p>
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span>Progress to goal</span>
+                <div className="flex justify-between text-xs font-medium">
+                  <span>Goal Progress</span>
                   <span>{Math.max(0, Math.round(monthPerformance.progress))}%</span>
                 </div>
                 <Progress value={Math.min(100, Math.max(0, monthPerformance.progress))} className="h-2" />
               </div>
               {!isOnTrack && monthPerformance.savings < 0 && (
-                <p className="text-xs text-red-500 font-medium">Warning: You are currently spending more than you earn this month.</p>
+                <div className="p-3 rounded-lg bg-red-50 border border-red-100">
+                  <p className="text-xs text-red-600 font-medium flex items-center gap-2">
+                    <AlertCircle className="h-3 w-3" />
+                    Alert: Monthly spending exceeds income.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600 text-base">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-red-600 text-sm md:text-base">
                   <ShieldAlert className="h-4 w-4" />
-                  Expense Restrictions
+                  Restrictions
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-4">
                   {activePlan.tips.filter(tip => /reduce|cut|stop|limit|avoid/i.test(tip)).map((tip, i) => (
-                    <li key={i} className="flex items-start gap-3 text-sm">
+                    <li key={i} className="flex items-start gap-3 text-xs md:text-sm">
                       <TrendingDown className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                      {tip}
+                      <span className="leading-relaxed">{tip}</span>
                     </li>
                   ))}
                   {activePlan.tips.filter(tip => /reduce|cut|stop|limit|avoid/i.test(tip)).length === 0 && (
-                    <p className="text-sm text-muted-foreground italic">Follow the growth suggestions to optimize your cash flow.</p>
+                    <p className="text-xs text-muted-foreground italic">No specific restrictions identified.</p>
                   )}
                 </ul>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-amber-600 text-base">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-amber-600 text-sm md:text-base">
                   <Lightbulb className="h-4 w-4" />
-                  Growth Suggestions
+                  Growth Tips
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-4">
                   {activePlan.tips.filter(tip => !/reduce|cut|stop|limit|avoid/i.test(tip)).map((tip, i) => (
-                    <li key={i} className="flex items-start gap-3 text-sm">
-                      <div className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-2 shrink-0" />
-                      {tip}
+                    <li key={i} className="flex items-start gap-3 text-xs md:text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                      <span className="leading-relaxed">{tip}</span>
                     </li>
                   ))}
                 </ul>
@@ -292,19 +299,19 @@ export function SavingsPlanClient() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Strategic Roadmap</CardTitle>
-              <CardDescription>Generated on {activePlan.createdAt.toDate().toLocaleDateString()}</CardDescription>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm md:text-base">Strategic Roadmap</CardTitle>
+              <CardDescription className="text-xs">Generated on {activePlan.createdAt.toDate().toLocaleDateString()}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {strategyTasks.length > 0 ? strategyTasks.map((task, idx) => (
-                  <div key={idx} className="flex items-start gap-3 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors shadow-sm">
+                  <div key={idx} className="flex items-start gap-3 p-3 md:p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors shadow-sm">
                     <Checkbox id={`task-${idx}`} className="mt-1" />
                     <label 
                       htmlFor={`task-${idx}`} 
-                      className="text-sm leading-relaxed cursor-pointer select-none font-medium"
+                      className="text-xs md:text-sm leading-relaxed cursor-pointer select-none font-medium text-foreground/90"
                     >
                       {task}
                     </label>
