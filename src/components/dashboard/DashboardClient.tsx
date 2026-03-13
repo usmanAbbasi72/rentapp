@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, Timestamp, limit } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
-import type { Transaction, Debt, Receivable } from '@/lib/types';
+import type { Transaction, Debt, Receivable, FinancialRecord } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
@@ -10,6 +10,7 @@ import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { subDays } from 'date-fns';
+import { AiSavingsAssistant } from './AiSavingsAssistant';
 
 export function DashboardClient() {
   const { user } = useUser();
@@ -18,6 +19,7 @@ export function DashboardClient() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [receivables, setReceivables] = useState<Receivable[]>([]);
+  const [allRecords, setAllRecords] = useState<FinancialRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,11 +53,10 @@ export function DashboardClient() {
     );
 
     const qDebts = query(debtsRef, orderBy('dueDate', 'asc'));
-    
     const qReceivables = query(receivablesRef, orderBy('dueDate', 'asc'));
 
     const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Transaction[];
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data(), recordType: 'transaction' })) as Transaction[];
       setTransactions(data);
       setLoading(false);
     }, (err) => {
@@ -65,28 +66,42 @@ export function DashboardClient() {
     });
 
     const unsubRecentTransactions = onSnapshot(qRecentTransactions, (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Transaction[];
+        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data(), recordType: 'transaction' })) as Transaction[];
         setRecentTransactions(data);
     }, (error) => {
         console.error("Error fetching recent transactions:", error);
     });
 
     const unsubDebts = onSnapshot(qDebts, (snapshot) => {
-      const allDebts = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Debt[];
-      const outstandingDebts = allDebts.filter(d => !d.isPaid)
-      setDebts(outstandingDebts);
+      const allDebts = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data(), recordType: 'debt' })) as Debt[];
+      setDebts(allDebts.filter(d => !d.isPaid));
     }, (err) => {
         console.error("Error fetching debts:", err);
         setError("Failed to load debt data.");
     });
 
     const unsubReceivables = onSnapshot(qReceivables, (snapshot) => {
-        const allReceivables = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Receivable[];
-        const outstandingReceivables = allReceivables.filter(r => !r.isReceived);
-        setReceivables(outstandingReceivables);
+        const allReceivables = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data(), recordType: 'receivable' })) as Receivable[];
+        setReceivables(allReceivables.filter(r => !r.isReceived));
     }, (err) => {
         console.error("Error fetching receivables:", err);
         setError("Failed to load receivable data.");
+    });
+
+    // Subscriptions for all records to feed AI
+    const unsubAllTransactions = onSnapshot(transactionsRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), recordType: 'transaction' })) as Transaction[];
+      setAllRecords(prev => [...prev.filter(r => r.recordType !== 'transaction'), ...data]);
+    });
+    
+    const unsubAllDebts = onSnapshot(debtsRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), recordType: 'debt' })) as Debt[];
+      setAllRecords(prev => [...prev.filter(r => r.recordType !== 'debt'), ...data]);
+    });
+
+    const unsubAllReceivables = onSnapshot(receivablesRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), recordType: 'receivable' })) as Receivable[];
+      setAllRecords(prev => [...prev.filter(r => r.recordType !== 'receivable'), ...data]);
     });
 
     return () => {
@@ -94,6 +109,9 @@ export function DashboardClient() {
       unsubRecentTransactions();
       unsubDebts();
       unsubReceivables();
+      unsubAllTransactions();
+      unsubAllDebts();
+      unsubAllReceivables();
     };
   }, [user, db, loading]);
 
@@ -101,10 +119,10 @@ export function DashboardClient() {
     const totalDebt = debts.reduce((acc, debt) => acc + debt.amount, 0);
     const totalReceivable = receivables.reduce((acc, rec) => acc + rec.amount, 0);
     const monthlyIncome = transactions
-      .filter((t) => t.type === 'income')
+      .filter((t) => (t as any).type === 'income')
       .reduce((acc, t) => acc + t.amount, 0);
     const monthlyExpense = transactions
-      .filter((t) => t.type === 'expense')
+      .filter((t) => (t as any).type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
     
     return { totalDebt, totalReceivable, monthlyIncome, monthlyExpense };
@@ -112,9 +130,9 @@ export function DashboardClient() {
 
   const expenseChartData = useMemo(() => {
     const expensesByCategory = transactions
-      .filter((t) => t.type === 'expense')
+      .filter((t) => (t as any).type === 'expense')
       .reduce((acc, t) => {
-        const category = t.category || 'Uncategorized';
+        const category = (t as any).category || 'Uncategorized';
         acc[category] = (acc[category] || 0) + t.amount;
         return acc;
       }, {} as { [key: string]: number });
@@ -122,8 +140,8 @@ export function DashboardClient() {
     return Object.entries(expensesByCategory).map(([name, total]) => ({ name, total }));
   }, [transactions]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(amount);
+  const formatCurrencyLocal = (amount: number) => {
+    return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR' }).format(amount);
   }
 
   if (loading) {
@@ -146,6 +164,10 @@ export function DashboardClient() {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <div className="lg:col-span-4">
+          <AiSavingsAssistant records={allRecords} />
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -153,8 +175,8 @@ export function DashboardClient() {
                     <DollarSign className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.monthlyIncome)}</div>
-                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => t.type === 'income').length} transaction(s)</p>
+                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.monthlyIncome)}</div>
+                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => (t as any).type === 'income').length} transaction(s)</p>
                 </CardContent>
             </Card>
              <Card>
@@ -163,8 +185,8 @@ export function DashboardClient() {
                     <DollarSign className="h-4 w-4 text-red-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.monthlyExpense)}</div>
-                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => t.type === 'expense').length} transaction(s)</p>
+                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.monthlyExpense)}</div>
+                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => (t as any).type === 'expense').length} transaction(s)</p>
                 </CardContent>
             </Card>
             <Card>
@@ -173,7 +195,7 @@ export function DashboardClient() {
                     <ArrowUpRight className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.totalReceivable)}</div>
+                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.totalReceivable)}</div>
                     <p className="text-xs text-muted-foreground">{receivables.length} outstanding receivable(s)</p>
                 </CardContent>
             </Card>
@@ -183,7 +205,7 @@ export function DashboardClient() {
                     <ArrowDownLeft className="h-4 w-4 text-red-500" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(summary.totalDebt)}</div>
+                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.totalDebt)}</div>
                     <p className="text-xs text-muted-foreground">{debts.length} outstanding debt(s)</p>
                 </CardContent>
             </Card>
@@ -224,8 +246,8 @@ export function DashboardClient() {
                                         <div className="text-sm text-muted-foreground">{t.date.toDate().toLocaleDateString()}</div>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Badge variant={t.type === 'income' ? 'secondary' : 'outline'} className={t.type === 'income' ? 'text-green-600' : 'text-red-600'}>
-                                            {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                                        <Badge variant={(t as any).type === 'income' ? 'secondary' : 'outline'} className={(t as any).type === 'income' ? 'text-green-600' : 'text-red-600'}>
+                                            {(t as any).type === 'income' ? '+' : '-'}{formatCurrencyLocal(t.amount)}
                                         </Badge>
                                     </TableCell>
                                 </TableRow>
@@ -250,7 +272,7 @@ export function DashboardClient() {
                                         <div className="font-medium">Pay {d.creditor}</div>
                                         <div className="text-sm text-muted-foreground">Due: {d.dueDate.toDate().toLocaleDateString()}</div>
                                     </TableCell>
-                                    <TableCell className="text-right font-medium">{formatCurrency(d.amount)}</TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrencyLocal(d.amount)}</TableCell>
                                 </TableRow>
                             )) : <TableRow><TableCell colSpan={2} className="text-center">No upcoming payments</TableCell></TableRow>}
                         </TableBody>
@@ -261,5 +283,3 @@ export function DashboardClient() {
     </div>
   );
 }
-
-    
