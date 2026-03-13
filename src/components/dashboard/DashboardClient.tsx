@@ -3,13 +3,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, Timestamp, limit } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
 import type { Transaction, Debt, Receivable } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
-import { Skeleton } from '../ui/skeleton';
-import { Table, TableBody, TableCell, TableRow } from '../ui/table';
-import { Badge } from '../ui/badge';
-import { subDays } from 'date-fns';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle, TrendingUp, TrendingDown, ReceiptText, Calendar as CalendarIcon, Wallet } from 'lucide-react';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { subDays, format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 export function DashboardClient() {
   const { user } = useUser();
@@ -22,12 +23,7 @@ export function DashboardClient() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !db) {
-      if (!user && !loading) {
-         setError("User not authenticated.");
-      }
-      return;
-    };
+    if (!user || !db) return;
     
     setLoading(true);
     setError(null);
@@ -75,7 +71,6 @@ export function DashboardClient() {
       setDebts(allDebts.filter(d => !d.isPaid));
     }, (err) => {
         console.error("Error fetching debts:", err);
-        setError("Failed to load debt data.");
     });
 
     const unsubReceivables = onSnapshot(qReceivables, (snapshot) => {
@@ -83,7 +78,6 @@ export function DashboardClient() {
         setReceivables(allReceivables.filter(r => !r.isReceived));
     }, (err) => {
         console.error("Error fetching receivables:", err);
-        setError("Failed to load receivable data.");
     });
 
     return () => {
@@ -92,16 +86,16 @@ export function DashboardClient() {
       unsubDebts();
       unsubReceivables();
     };
-  }, [user, db, loading]);
+  }, [user, db]);
 
   const summary = useMemo(() => {
     const totalDebt = debts.reduce((acc, debt) => acc + debt.amount, 0);
     const totalReceivable = receivables.reduce((acc, rec) => acc + rec.amount, 0);
     const monthlyIncome = transactions
-      .filter((t) => (t as any).type === 'income')
+      .filter((t) => t.type === 'income')
       .reduce((acc, t) => acc + t.amount, 0);
     const monthlyExpense = transactions
-      .filter((t) => (t as any).type === 'expense')
+      .filter((t) => t.type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
     
     return { totalDebt, totalReceivable, monthlyIncome, monthlyExpense };
@@ -109,152 +103,224 @@ export function DashboardClient() {
 
   const expenseChartData = useMemo(() => {
     const expensesByCategory = transactions
-      .filter((t) => (t as any).type === 'expense')
+      .filter((t) => t.type === 'expense')
       .reduce((acc, t) => {
-        const category = (t as any).category || 'Uncategorized';
+        const category = t.category || 'Uncategorized';
         acc[category] = (acc[category] || 0) + t.amount;
         return acc;
       }, {} as { [key: string]: number });
 
-    return Object.entries(expensesByCategory).map(([name, total]) => ({ name, total }));
+    return Object.entries(expensesByCategory)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
   }, [transactions]);
 
   const formatCurrencyLocal = (amount: number) => {
-    return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR' }).format(amount);
+    return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(amount);
   }
 
   if (loading) {
     return (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Skeleton className="h-32"/>
-            <Skeleton className="h-32"/>
-            <Skeleton className="h-32"/>
-            <Skeleton className="h-32"/>
-            <div className="lg:col-span-4"><Skeleton className="h-80"/></div>
-            <div className="lg:col-span-2"><Skeleton className="h-64"/></div>
-            <div className="lg:col-span-2"><Skeleton className="h-64"/></div>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-xl" />
+            ))}
+            <div className="lg:col-span-4"><Skeleton className="h-96 rounded-xl" /></div>
+            <div className="lg:col-span-2"><Skeleton className="h-80 rounded-xl" /></div>
+            <div className="lg:col-span-2"><Skeleton className="h-80 rounded-xl" /></div>
         </div>
     );
   }
 
   if (error) {
-    return <div className="text-center text-destructive p-8">{error}</div>;
+    return <div className="flex items-center justify-center p-12 text-destructive font-medium border rounded-xl bg-destructive/5">{error}</div>;
   }
 
+  const StatCard = ({ title, amount, subtitle, icon: Icon, trendColor, className }: any) => (
+    <Card className={cn("overflow-hidden border-none shadow-md", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <div className={cn("p-2 rounded-lg bg-background/80 shadow-sm", trendColor)}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold tracking-tight">{formatCurrencyLocal(amount)}</div>
+        <p className="text-xs text-muted-foreground mt-1 font-medium">{subtitle}</p>
+      </CardContent>
+    </Card>
+  );
+
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        <div className="grid gap-6 md:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Income (Last 30 Days)</CardTitle>
-                    <DollarSign className="h-4 w-4 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.monthlyIncome)}</div>
-                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => (t as any).type === 'income').length} transaction(s)</p>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Expenses (Last 30 Days)</CardTitle>
-                    <DollarSign className="h-4 w-4 text-red-500" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.monthlyExpense)}</div>
-                    <p className="text-xs text-muted-foreground">from {transactions.filter(t => (t as any).type === 'expense').length} transaction(s)</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Money Owed To You</CardTitle>
-                    <ArrowUpRight className="h-4 w-4 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.totalReceivable)}</div>
-                    <p className="text-xs text-muted-foreground">{receivables.length} outstanding receivable(s)</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Money You Owe</CardTitle>
-                    <ArrowDownLeft className="h-4 w-4 text-red-500" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrencyLocal(summary.totalDebt)}</div>
-                    <p className="text-xs text-muted-foreground">{debts.length} outstanding debt(s)</p>
-                </CardContent>
-            </Card>
+    <div className="space-y-8">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard 
+              title="Monthly Income" 
+              amount={summary.monthlyIncome} 
+              subtitle={`From ${transactions.filter(t => t.type === 'income').length} records`} 
+              icon={TrendingUp} 
+              trendColor="text-emerald-500"
+              className="bg-emerald-50/50 dark:bg-emerald-950/10"
+            />
+             <StatCard 
+              title="Monthly Expenses" 
+              amount={summary.monthlyExpense} 
+              subtitle={`From ${transactions.filter(t => t.type === 'expense').length} records`} 
+              icon={TrendingDown} 
+              trendColor="text-rose-500"
+              className="bg-rose-50/50 dark:bg-rose-950/10"
+            />
+            <StatCard 
+              title="Receivables" 
+              amount={summary.totalReceivable} 
+              subtitle={`${receivables.length} pending items`} 
+              icon={ArrowUpRight} 
+              trendColor="text-blue-500"
+              className="bg-blue-50/50 dark:bg-blue-950/10"
+            />
+            <StatCard 
+              title="Total Debts" 
+              amount={summary.totalDebt} 
+              subtitle={`${debts.length} outstanding`} 
+              icon={ArrowDownLeft} 
+              trendColor="text-amber-500"
+              className="bg-amber-50/50 dark:bg-amber-950/10"
+            />
         </div>
 
-        <div className="lg:col-span-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Expense Analysis (Last 30 Days)</CardTitle>
-                </CardHeader>
-                <CardContent className="pl-2">
-                    {expenseChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={expenseChartData}>
-                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `Rs ${value}`} />
-                        <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}/>
-                        <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">Spending Overview</CardTitle>
+                    <CardDescription>Visual breakdown of your expenses by category</CardDescription>
+                  </div>
+                  <ReceiptText className="h-5 w-5 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                  {expenseChartData.length > 0 ? (
+                  <div className="h-[350px] w-full pt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={expenseChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                          <XAxis 
+                            dataKey="name" 
+                            stroke="#888888" 
+                            fontSize={12} 
+                            tickLine={false} 
+                            axisLine={false} 
+                          />
+                          <YAxis 
+                            stroke="#888888" 
+                            fontSize={12} 
+                            tickLine={false} 
+                            axisLine={false} 
+                            tickFormatter={(value) => `Rs ${value}`} 
+                          />
+                          <Tooltip 
+                            cursor={{fill: 'hsl(var(--muted))', opacity: 0.4}} 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--card))', 
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }}
+                          />
+                          <Bar dataKey="total" radius={[6, 6, 0, 0]} barSize={40}>
+                            {expenseChartData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - (index * 0.15)})`} />
+                            ))}
+                          </Bar>
                         </BarChart>
                     </ResponsiveContainer>
-                    ) : <p className="text-center text-muted-foreground py-10">No expense data for chart.</p>}
-                </CardContent>
-            </Card>
+                  </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-24 text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+                      <Wallet className="h-10 w-10 mb-2 opacity-20" />
+                      <p className="text-sm">Add some expenses to see the analysis</p>
+                    </div>
+                  )}
+              </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Upcoming Due</CardTitle>
+              </div>
+              <CardDescription>Track your pending debt payments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {debts.length > 0 ? debts.slice(0, 5).map(d => (
+                    <div key={d.id} className="flex items-center justify-between group p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="space-y-1">
+                            <p className="text-sm font-semibold group-hover:text-primary transition-colors">Pay {d.creditor}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3 text-amber-500" />
+                              {format(d.dueDate.toDate(), 'MMM dd, yyyy')}
+                            </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold">{formatCurrencyLocal(d.amount)}</p>
+                        </div>
+                    </div>
+                )) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <p className="text-sm">All debts are settled!</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
         
-        <div className="lg:col-span-4 grid gap-6 md:grid-cols-2">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Recent Transactions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableBody>
-                            {recentTransactions.length > 0 ? recentTransactions.map(t => (
-                                <TableRow key={t.id}>
-                                    <TableCell>
-                                        <div className="font-medium">{t.description}</div>
-                                        <div className="text-sm text-muted-foreground">{t.date.toDate().toLocaleDateString()}</div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Badge variant={(t as any).type === 'income' ? 'secondary' : 'outline'} className={(t as any).type === 'income' ? 'text-green-600' : 'text-red-600'}>
-                                            {(t as any).type === 'income' ? '+' : '-'}{formatCurrencyLocal(t.amount)}
-                                        </Badge>
-                                    </TableCell>
-                                </TableRow>
-                            )) : <TableRow><TableCell colSpan={2} className="text-center">No recent transactions</TableCell></TableRow>}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-destructive" />
-                        Upcoming Payments
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableBody>
-                            {debts.length > 0 ? debts.slice(0, 5).map(d => (
-                                <TableRow key={d.id}>
-                                    <TableCell>
-                                        <div className="font-medium">Pay {d.creditor}</div>
-                                        <div className="text-sm text-muted-foreground">Due: {d.dueDate.toDate().toLocaleDateString()}</div>
-                                    </TableCell>
-                                    <TableCell className="text-right font-medium">{formatCurrencyLocal(d.amount)}</TableCell>
-                                </TableRow>
-                            )) : <TableRow><TableCell colSpan={2} className="text-center">No upcoming payments</TableCell></TableRow>}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-        </div>
+        <Card className="shadow-sm">
+            <CardHeader>
+                <CardTitle className="text-lg">Recent Financial Activity</CardTitle>
+                <CardDescription>Your most recent income and expense records</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+                <Table>
+                    <TableBody>
+                        {recentTransactions.length > 0 ? recentTransactions.map(t => (
+                            <TableRow key={t.id} className="hover:bg-muted/50 transition-colors">
+                                <TableCell className="py-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className={cn(
+                                        "p-2 rounded-full",
+                                        t.type === 'income' ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
+                                      )}>
+                                        {t.type === 'income' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                                      </div>
+                                      <div>
+                                        <div className="font-semibold">{t.description}</div>
+                                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                          {format(t.date.toDate(), 'MMM dd')} • {t.category}
+                                        </div>
+                                      </div>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-right py-4">
+                                    <div className={cn(
+                                      "font-bold text-base",
+                                      t.type === 'income' ? "text-emerald-600" : "text-rose-600"
+                                    )}>
+                                        {t.type === 'income' ? '+' : '-'}{formatCurrencyLocal(t.amount)}
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        )) : (
+                          <TableRow>
+                            <TableCell colSpan={2} className="text-center py-12 text-muted-foreground">
+                              No financial activity recorded yet
+                            </TableCell>
+                          </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
     </div>
   );
 }
