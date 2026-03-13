@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, Timestamp, limit } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase/provider';
-import type { Transaction, Debt, Receivable, FinancialRecord } from '@/lib/types';
+import type { Transaction, Debt, Receivable } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
@@ -10,7 +10,6 @@ import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { subDays } from 'date-fns';
-import { AiSavingsAssistant } from './AiSavingsAssistant';
 
 export function DashboardClient() {
   const { user } = useUser();
@@ -19,7 +18,6 @@ export function DashboardClient() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [receivables, setReceivables] = useState<Receivable[]>([]);
-  const [allRecords, setAllRecords] = useState<FinancialRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,30 +86,11 @@ export function DashboardClient() {
         setError("Failed to load receivable data.");
     });
 
-    // Subscriptions for all records to feed AI
-    const unsubAllTransactions = onSnapshot(transactionsRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), recordType: 'transaction' })) as Transaction[];
-      setAllRecords(prev => [...prev.filter(r => r.recordType !== 'transaction'), ...data]);
-    });
-    
-    const unsubAllDebts = onSnapshot(debtsRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), recordType: 'debt' })) as Debt[];
-      setAllRecords(prev => [...prev.filter(r => r.recordType !== 'debt'), ...data]);
-    });
-
-    const unsubAllReceivables = onSnapshot(receivablesRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), recordType: 'receivable' })) as Receivable[];
-      setAllRecords(prev => [...prev.filter(r => r.recordType !== 'receivable'), ...data]);
-    });
-
     return () => {
       unsubTransactions();
       unsubRecentTransactions();
       unsubDebts();
       unsubReceivables();
-      unsubAllTransactions();
-      unsubAllDebts();
-      unsubAllReceivables();
     };
   }, [user, db, loading]);
 
@@ -164,10 +143,6 @@ export function DashboardClient() {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        <div className="lg:col-span-4">
-          <AiSavingsAssistant records={allRecords} />
-        </div>
-
         <div className="grid gap-6 md:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
